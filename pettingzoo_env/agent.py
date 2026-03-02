@@ -6,6 +6,8 @@ The intention was for users to have a (relatively clean) ~200 line file to refer
 Author: Jet (https://github.com/jjshoots)
 """
 
+import time
+
 import numpy as np
 import pygame
 import torch
@@ -15,28 +17,20 @@ from supersuit import color_reduction_v0, frame_stack_v1, resize_v1
 from torch.distributions.categorical import Categorical
 
 from pettingzoo.butterfly import pistonball_v6
-
+from env import CustomEnvironment
 
 class Agent(nn.Module):
-    def __init__(self, num_actions):
+    def __init__(self, num_actions, obs_dim):
         super().__init__()
-
         self.network = nn.Sequential(
-            self._layer_init(nn.Conv2d(4, 32, 3, padding=1)),
-            nn.MaxPool2d(2),
+            self._layer_init(nn.Linear(obs_dim, 128)),
             nn.ReLU(),
-            self._layer_init(nn.Conv2d(32, 64, 3, padding=1)),
-            nn.MaxPool2d(2),
-            nn.ReLU(),
-            self._layer_init(nn.Conv2d(64, 128, 3, padding=1)),
-            nn.MaxPool2d(2),
-            nn.ReLU(),
-            nn.Flatten(),
-            self._layer_init(nn.Linear(128 * 8 * 8, 512)),
+            self._layer_init(nn.Linear(128, 128)),
             nn.ReLU(),
         )
-        self.actor = self._layer_init(nn.Linear(512, num_actions), std=0.01)
-        self.critic = self._layer_init(nn.Linear(512, 1))
+        self.actor = self._layer_init(nn.Linear(128, num_actions), std=0.01)
+        self.critic = self._layer_init(nn.Linear(128, 1))
+
 
     def _layer_init(self, layer, std=np.sqrt(2), bias_const=0.0):
         torch.nn.init.orthogonal_(layer.weight, std)
@@ -44,10 +38,10 @@ class Agent(nn.Module):
         return layer
 
     def get_value(self, x):
-        return self.critic(self.network(x / 255.0))
+        return self.critic(self.network(x))
 
     def get_action_and_value(self, x, action=None):
-        hidden = self.network(x / 255.0)
+        hidden = self.network(x)
         logits = self.actor(hidden)
         probs = Categorical(logits=logits)
         if action is None:
@@ -55,16 +49,17 @@ class Agent(nn.Module):
         return action, probs.log_prob(action), probs.entropy(), self.critic(hidden)
 
 
-def batchify_obs(obs, device):
-    """Converts PZ style observations to batch of torch arrays."""
-    # convert to list of np arrays
-    obs = np.stack([obs[a] for a in obs], axis=0)
-    # transpose to be (batch, channel, height, width)
-    obs = obs.transpose(0, -1, 1, 2)
-    # convert to torch
-    obs = torch.tensor(obs).to(device)
 
-    return obs
+def batchify_obs(obs, device):
+    """
+    Converts PZ-style dict obs -> torch(batch, obs_dim).
+    Your env returns a tuple of 3 ints per agent. We'll cast to float.
+    """
+    x = np.stack([obs[a] for a in obs], axis=0)          # (batch, 3)
+    x = x.astype(np.float32)                             # normalize later if you like
+    x = torch.tensor(x, dtype=torch.float32, device=device)
+
+    return x
 
 
 def batchify(x, device):
@@ -72,14 +67,14 @@ def batchify(x, device):
     # convert to list of np arrays
     x = np.stack([x[a] for a in x], axis=0)
     # convert to torch
-    x = torch.tensor(x).to(device)
+    x = torch.tensor(x, dtype=torch.float32, device=device)
 
     return x
 
 
 def unbatchify(x, env):
     """Converts np array to PZ style arguments."""
-    x = x.cpu().numpy()
+    x = x.detach().cpu().numpy()
     x = {a: x[i] for i, a in enumerate(env.possible_agents)}
 
     return x
@@ -100,24 +95,27 @@ if __name__ == "__main__":
     total_episodes = 2
 
     """ ENV SETUP """
-    env = pistonball_v6.parallel_env(
-        render_mode="rgb_array", continuous=False, max_cycles=max_cycles
-    )
-    env = color_reduction_v0(env)
-    env = resize_v1(env, frame_size[0], frame_size[1])
-    env = frame_stack_v1(env, stack_size=stack_size)
+    env = CustomEnvironment()
+    # env = pistonball_v6.parallel_env(
+    #     render_mode="rgb_array", continuous=False, max_cycles=max_cycles
+    # )
+    # env = color_reduction_v0(env)
+    # env = resize_v1(env, frame_size[0], frame_size[1])
+    # env = frame_stack_v1(env, stack_size=stack_size)
     num_agents = len(env.possible_agents)
     num_actions = env.action_space(env.possible_agents[0]).n
-    observation_size = env.observation_space(env.possible_agents[0]).shape
+
+    obs_dim = env.observation_space(env.possible_agents[0]).shape[0]
+    # observation_size = env.observation_space(env.possible_agents[0]).shape
 
     """ LEARNER SETUP """
-    agent = Agent(num_actions=num_actions).to(device)
+    agent = Agent(num_actions=num_actions, obs_dim=obs_dim).to(device)
     optimizer = optim.Adam(agent.parameters(), lr=0.001, eps=1e-5)
 
     """ ALGO LOGIC: EPISODE STORAGE"""
     end_step = 0
     total_episodic_return = 0
-    rb_obs = torch.zeros((max_cycles, num_agents, stack_size, *frame_size)).to(device)
+    rb_obs = torch.zeros((max_cycles, num_agents, obs_dim)).to(device)
     rb_actions = torch.zeros((max_cycles, num_agents)).to(device)
     rb_logprobs = torch.zeros((max_cycles, num_agents)).to(device)
     rb_rewards = torch.zeros((max_cycles, num_agents)).to(device)
@@ -256,31 +254,22 @@ if __name__ == "__main__":
         print(f"Explained Variance: {explained_var.item()}")
         print("\n-------------------------------------------\n")
 
-    """ RENDER THE POLICY """
-    env = pistonball_v6.parallel_env(render_mode="human", continuous=False)
-    env = color_reduction_v0(env)
-    env = resize_v1(env, 64, 64)
-    env = frame_stack_v1(env, stack_size=4)
 
+    # RENDER THE POLICY
+    env = CustomEnvironment()
     agent.eval()
-
     with torch.no_grad():
-        # render 5 episodes out
         for episode in range(5):
             print(f"Rendering episode {episode}...")
             obs, infos = env.reset(seed=None)
-            obs = batchify_obs(obs, device)
             terms = [False]
             truncs = [False]
-            
-            while not any(terms) and not any(truncs):
-                for event in pygame.event.get():
-                    if event.type == pygame.QUIT:
-                        pygame.quit()
-                        raise SystemExit
-            
-                actions, logprobs, _, values = agent.get_action_and_value(obs)
+            done = False
+            while not done:
+                actions, _, _, _ = agent.get_action_and_value(batchify_obs(obs, device))
                 obs, rewards, terms, truncs, infos = env.step(unbatchify(actions, env))
-                obs = batchify_obs(obs, device)
-                terms = [terms[a] for a in terms]
-                truncs = [truncs[a] for a in truncs]
+                env.render()  # prints grid to console
+
+                done = any(terms.values()) or any(truncs.values())
+                if not done:
+                    time.sleep(0.3)  # add delay so we can see the render
