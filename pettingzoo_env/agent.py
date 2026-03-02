@@ -7,13 +7,14 @@ Author: Jet (https://github.com/jjshoots)
 """
 
 import numpy as np
+import pygame
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from supersuit import color_reduction_v0, frame_stack_v1, resize_v1
 from torch.distributions.categorical import Categorical
 
-import CustomEnvironment
+from pettingzoo.butterfly import pistonball_v6
 
 
 class Agent(nn.Module):
@@ -87,6 +88,7 @@ def unbatchify(x, env):
 if __name__ == "__main__":
     """ALGO PARAMS"""
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Using device: {device}")
     ent_coef = 0.1
     vf_coef = 0.1
     clip_coef = 0.1
@@ -98,15 +100,12 @@ if __name__ == "__main__":
     total_episodes = 2
 
     """ ENV SETUP """
-    env = CustomEnvironment()
-    
-    #env = pistonball_v6.parallel_env(
-    #    render_mode="rgb_array", continuous=False, max_cycles=max_cycles
-    #)
-    #env = color_reduction_v0(env)
-    #env = resize_v1(env, frame_size[0], frame_size[1])
-    #env = frame_stack_v1(env, stack_size=stack_size)
-    
+    env = pistonball_v6.parallel_env(
+        render_mode="rgb_array", continuous=False, max_cycles=max_cycles
+    )
+    env = color_reduction_v0(env)
+    env = resize_v1(env, frame_size[0], frame_size[1])
+    env = frame_stack_v1(env, stack_size=stack_size)
     num_agents = len(env.possible_agents)
     num_actions = env.action_space(env.possible_agents[0]).n
     observation_size = env.observation_space(env.possible_agents[0]).shape
@@ -268,11 +267,18 @@ if __name__ == "__main__":
     with torch.no_grad():
         # render 5 episodes out
         for episode in range(5):
+            print(f"Rendering episode {episode}...")
             obs, infos = env.reset(seed=None)
             obs = batchify_obs(obs, device)
             terms = [False]
             truncs = [False]
+            
             while not any(terms) and not any(truncs):
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
+                        pygame.quit()
+                        raise SystemExit
+            
                 actions, logprobs, _, values = agent.get_action_and_value(obs)
                 obs, rewards, terms, truncs, infos = env.step(unbatchify(actions, env))
                 obs = batchify_obs(obs, device)
