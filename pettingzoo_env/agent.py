@@ -17,7 +17,7 @@ from supersuit import color_reduction_v0, frame_stack_v1, resize_v1
 from torch.distributions.categorical import Categorical
 
 from pettingzoo.butterfly import pistonball_v6
-from env import CustomEnvironment
+from pettingzoo_env.prisoner_env import PrisonerEnvironment
 
 class Agent(nn.Module):
     def __init__(self, num_actions, obs_dim):
@@ -95,18 +95,12 @@ if __name__ == "__main__":
     total_episodes = 2
 
     """ ENV SETUP """
-    env = CustomEnvironment()
-    # env = pistonball_v6.parallel_env(
-    #     render_mode="rgb_array", continuous=False, max_cycles=max_cycles
-    # )
-    # env = color_reduction_v0(env)
-    # env = resize_v1(env, frame_size[0], frame_size[1])
-    # env = frame_stack_v1(env, stack_size=stack_size)
+    env = PrisonerEnvironment(render_mode=None, grid_size=7, cell_size=80, fps=5) 
+
     num_agents = len(env.possible_agents)
     num_actions = env.action_space(env.possible_agents[0]).n
 
     obs_dim = env.observation_space(env.possible_agents[0]).shape[0]
-    # observation_size = env.observation_space(env.possible_agents[0]).shape
 
     """ LEARNER SETUP """
     agent = Agent(num_actions=num_actions, obs_dim=obs_dim).to(device)
@@ -256,16 +250,18 @@ if __name__ == "__main__":
 
 
     # RENDER THE POLICY
-    env = CustomEnvironment()
+    env = PrisonerEnvironment(render_mode="human", grid_size=7, cell_size=80, fps=5) 
+
     agent.eval()
     with torch.no_grad():
-        for episode in range(5):
+        for episode in range(3):
             print(f"Rendering episode {episode}...")
             obs, infos = env.reset(seed=None)
             terms = [False]
             truncs = [False]
             done = False
             while not done:
+                
                 actions, _, _, _ = agent.get_action_and_value(batchify_obs(obs, device))
                 obs, rewards, terms, truncs, infos = env.step(unbatchify(actions, env))
                 env.render()  # prints grid to console

@@ -1,37 +1,30 @@
 import functools
 import random
 from copy import copy
+import pygame
 
 import numpy as np
 from gymnasium.spaces import Discrete, MultiDiscrete
 
 from pettingzoo import ParallelEnv
-from pettingzoo.test import parallel_api_test
+from pettingzoo.test import parallel_api_test, api_test
 
-
-class CustomEnvironment(ParallelEnv):
-    """The metadata holds environment constants.
-
+class PrisonerEnvironment(ParallelEnv):
+    """
+    The metadata holds environment constants.
     The "name" metadata allows the environment to be pretty printed.
     """
-
     metadata = {
-        "name": "pettingzoo_env_v0",
+        "name": "pettingzoo_env_prisoner_v0",
     }
 
-    def __init__(self):
-        """The init method takes in environment arguments.
-
-        Should define the following attributes:
+    def __init__(self, render_mode=None, grid_size=7, cell_size=80, fps=10):
+        """
         - escape x and y coordinates
         - guard x and y coordinates
         - prisoner x and y coordinates
         - timestamp
         - possible_agents
-
-        Note: as of v1.18.1, the action_spaces and observation_spaces attributes are deprecated.
-        Spaces should be defined in the action_space() and observation_space() methods.
-        If these methods are not overridden, spaces will be inferred from self.observation_spaces/action_spaces, raising a warning.
 
         These attributes should not be changed after initialization.
         """
@@ -44,18 +37,27 @@ class CustomEnvironment(ParallelEnv):
         self.timestep = None
         self.possible_agents = ["prisoner", "guard"]
 
+
+        #### PYGAME RENDERING SETUP ####
+        self.render_mode = render_mode   # None | "human" | "rgb_array" | "ansi"
+        self.grid_size = grid_size       # e.g., 7x7
+        self.cell_size = cell_size       # pixel size of each grid cell
+        self.fps = fps                   # cap frame rate for "human"
+
+        # Lazy Pygame handles
+        self._screen = None
+        self._clock = None
+        self._surface_size = (self.grid_size * self.cell_size,
+                              self.grid_size * self.cell_size)
+        self._closed = False
+
+
+
+
+
     def reset(self, seed=None, options=None):
-        """Reset set the environment to a starting point.
-
-        It needs to initialize the following attributes:
-        - agents
-        - timestamp
-        - prisoner x and y coordinates
-        - guard x and y coordinates
-        - escape x and y coordinates
-        - observation
-        - infos
-
+        """
+        Reset set the environment to a starting point.
         And must set up the environment so that render(), step(), and observe() can be called without issues.
         """
         self.agents = copy(self.possible_agents)
@@ -85,7 +87,8 @@ class CustomEnvironment(ParallelEnv):
         return observations, infos
 
     def step(self, actions):
-        """Takes in an action for the current agent (specified by agent_selection).
+        """
+        Takes in an action for the current agent (specified by agent_selection).
 
         Needs to update:
         - prisoner x and y coordinates
@@ -156,13 +159,98 @@ class CustomEnvironment(ParallelEnv):
 
         return observations, rewards, terminations, truncations, infos
 
+
+    def _init_pygame(self):
+        if self._screen is not None:
+            return
+
+        pygame.init()
+        pygame.display.set_caption("Prisoner vs Guard")
+        self._screen = pygame.display.set_mode(self._surface_size)
+        self._clock = pygame.time.Clock()
+
+        # Images
+        self.prisoner_img = pygame.image.load("assets/prisoner.png").convert_alpha()
+        self.guard_img = pygame.image.load("assets/guard.png").convert_alpha()
+        self.escape_img = pygame.image.load("assets/prison_exit.png").convert_alpha()
+        # Scale to fit inside a cell
+        img_size = self.cell_size - 12
+        self.prisoner_img = pygame.transform.smoothscale(self.prisoner_img, (img_size, img_size))
+        self.guard_img = pygame.transform.smoothscale(self.guard_img, (img_size, img_size))
+        self.escape_img = pygame.transform.smoothscale(self.escape_img, (img_size, img_size))
+
     def render(self):
-        """Renders the environment."""
-        grid = np.full((7, 7), " ")
-        grid[self.prisoner_y, self.prisoner_x] = "P"
-        grid[self.guard_y, self.guard_x] = "G"
-        grid[self.escape_y, self.escape_x] = "E"
-        print(f"{grid} \n")
+        if self.render_mode != "human":
+            grid = np.full((self.grid_size, self.grid_size), " ", dtype="<U1")
+            grid[self.prisoner_y, self.prisoner_x] = "P"
+            grid[self.guard_y, self.guard_x] = "G"
+            grid[self.escape_y, self.escape_x] = "E"
+            print(grid, "\n")
+            return
+        else:
+            if self._screen is None:
+                self._init_pygame()
+
+            # keep the OS window responsive
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    self.close()
+                    raise SystemExit
+                
+            self._draw_scene(self._screen)
+            pygame.display.flip()
+            self._clock.tick(60)
+
+
+    def _draw_scene(self, surface):
+        # colors (define once in __init__ if you prefer)
+        COLOR_BG = (30, 30, 35)
+        COLOR_GRID = (60, 60, 70)
+        COLOR_PRISONER = (80, 200, 120)
+        COLOR_GUARD = (220, 80, 80)
+        COLOR_ESCAPE = (80, 150, 240)
+
+        surface.fill(COLOR_BG)
+
+        # grid lines
+        for i in range(self.grid_size + 1):
+            x = i * self.cell_size
+            y = i * self.cell_size
+            pygame.draw.line(surface, COLOR_GRID, (x, 0), (x, self._surface_size[1]), 1)
+            pygame.draw.line(surface, COLOR_GRID, (0, y), (self._surface_size[0], y), 1)
+
+        # helper: grid cell rectangle
+        def cell_rect(x, y, pad=6):
+            return pygame.Rect(
+                x * self.cell_size + pad,
+                y * self.cell_size + pad,
+                self.cell_size - 2 * pad,
+                self.cell_size - 2 * pad,
+            )
+        def draw_image(img, x, y):
+            rect = img.get_rect(center=cell_rect(x, y).center)
+            surface.blit(img, rect)
+
+
+        # draw escape, guard, prisoner (order decides which is “on top”)
+        draw_image(self.escape_img,   self.escape_x,   self.escape_y)
+        draw_image(self.guard_img,    self.guard_x,    self.guard_y)
+        draw_image(self.prisoner_img, self.prisoner_x, self.prisoner_y)
+
+
+    
+    def close(self):
+        try:
+            if pygame.display.get_init():
+                pygame.display.quit()
+            pygame.quit()
+        except Exception:
+            pass
+        self._screen = None
+        self._clock = None
+        self._closed = True
+
+
 
     # Observation space should be defined here.
     # lru_cache allows observation and action spaces to be memoized, reducing clock cycles required to get each agent's space.
@@ -178,10 +266,9 @@ class CustomEnvironment(ParallelEnv):
     def action_space(self, agent):
         return Discrete(4)
     
-from pettingzoo.test import parallel_api_test, api_test
 
 if __name__ == "__main__":
-    env = CustomEnvironment()
+    env = PrisonerEnvironment()
     #api_test(env, num_cycles=1_000_000, verbose_progress=True)
     parallel_api_test(env, num_cycles=1_000_000)
     print("hello")
