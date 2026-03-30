@@ -1,0 +1,29 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Shooter Environment",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "./pettingzoo_env/shooter_env.py",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Train Agent",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "pettingzoo_env.agent",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Test Env",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "test.test_env",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        }
+    ]
+}

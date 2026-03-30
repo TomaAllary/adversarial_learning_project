@@ -1,1 +1,1 @@
-from .env import CustomEnvironment
+from .prisoner_env import PrisonerEnvironment
