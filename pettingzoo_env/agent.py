@@ -15,6 +15,7 @@ import torch.nn as nn
 import torch.optim as optim
 from supersuit import color_reduction_v0, frame_stack_v1, resize_v1
 from torch.distributions.categorical import Categorical
+from tqdm import tqdm
 
 from pettingzoo.butterfly import pistonball_v6
 from pettingzoo_env.prisoner_env import PrisonerEnvironment
@@ -92,7 +93,8 @@ if __name__ == "__main__":
     stack_size = 4
     frame_size = (64, 64)
     max_cycles = 125
-    total_episodes = 2
+    total_episodes = 20000
+    verbose_rate = 20
 
     """ ENV SETUP """
     env = PrisonerEnvironment(render_mode=None, grid_size=7, cell_size=80, fps=5) 
@@ -118,7 +120,7 @@ if __name__ == "__main__":
 
     """ TRAINING LOGIC """
     # train for n number of episodes
-    for episode in range(total_episodes):
+    for episode in tqdm(range(total_episodes), desc="Training episodes"):
         # collect an episode
         with torch.no_grad():
             # collect observations and convert to batch of torch tensors
@@ -236,17 +238,18 @@ if __name__ == "__main__":
         var_y = np.var(y_true)
         explained_var = np.nan if var_y == 0 else 1 - np.var(y_true - y_pred) / var_y
 
-        print(f"Training episode {episode}")
-        print(f"Episodic Return: {np.mean(total_episodic_return)}")
-        print(f"Episode Length: {end_step}")
-        print("")
-        print(f"Value Loss: {v_loss.item()}")
-        print(f"Policy Loss: {pg_loss.item()}")
-        print(f"Old Approx KL: {old_approx_kl.item()}")
-        print(f"Approx KL: {approx_kl.item()}")
-        print(f"Clip Fraction: {np.mean(clip_fracs)}")
-        print(f"Explained Variance: {explained_var.item()}")
-        print("\n-------------------------------------------\n")
+        if episode % verbose_rate == 0:
+            print(f"Training episode {episode}")
+            print(f"Episodic Return: {np.mean(total_episodic_return)}")
+            print(f"Episode Length: {end_step}")
+            print("")
+            print(f"Value Loss: {v_loss.item()}")
+            print(f"Policy Loss: {pg_loss.item()}")
+            print(f"Old Approx KL: {old_approx_kl.item()}")
+            print(f"Approx KL: {approx_kl.item()}")
+            print(f"Clip Fraction: {np.mean(clip_fracs)}")
+            print(f"Explained Variance: {explained_var.item()}")
+            print("\n-------------------------------------------\n")
 
 
     # RENDER THE POLICY

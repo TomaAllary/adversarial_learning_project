@@ -13,7 +13,7 @@
             "name": "Train Agent",
             "type": "debugpy",
             "request": "launch",
-            "module": "pettingzoo_env.agent",
+            "module": "pettingzoo_env.train",
             "console": "integratedTerminal",
             "justMyCode": true
         },

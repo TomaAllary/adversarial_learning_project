@@ -9,13 +9,13 @@ from gymnasium.spaces import Discrete, MultiDiscrete
 from pettingzoo import ParallelEnv
 from pettingzoo.test import parallel_api_test, api_test
 
-class PrisonerEnvironment(ParallelEnv):
+class ShooterEnvironment(ParallelEnv):
     """
     The metadata holds environment constants.
     The "name" metadata allows the environment to be pretty printed.
     """
     metadata = {
-        "name": "pettingzoo_env_prisoner_v0",
+        "name": "pettingzoo_env_shooter_v0",
     }
 
     def __init__(self, render_mode=None, grid_size=7, cell_size=80, fps=10):
@@ -265,7 +265,7 @@ class PrisonerEnvironment(ParallelEnv):
     
 
 if __name__ == "__main__":
-    env = PrisonerEnvironment()
+    env = ShooterEnvironment()
     #api_test(env, num_cycles=1_000_000, verbose_progress=True)
     parallel_api_test(env, num_cycles=1_000_000)
     print("hello")
