@@ -96,6 +96,8 @@ def train(env, agents):
  
  
 if __name__ == "__main__":
+    print(f"USING DEVICE: {DEVICE}")
+    
     env = PrisonerEnvironment(render_mode=None, grid_size=7, cell_size=80, fps=5)
     num_actions = env.action_space(env.possible_agents[0]).n
     obs_dim     = env.observation_space(env.possible_agents[0]).shape[0]
