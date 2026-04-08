@@ -1,10 +1,5 @@
 """
-3 v 3 tactical shooter environment (PettingZoo ParallelEnv)
-
-Teams
------
-  Red:  red_0, red_1, red_2   (start top-left cluster)
-  Blue: blue_0, blue_1, blue_2 (start bottom-right cluster)
+1v1 tactical shooter environment (PettingZoo ParallelEnv)
 
 Observation per agent  (flat float32 vector, length = OBS_DIM)
 --------------------------------------------------------------
@@ -13,28 +8,28 @@ Observation per agent  (flat float32 vector, length = OBS_DIM)
     - hp_ratio                (0-1)
     - alive                   (0 or 1)
     - in_my_cone              (0 or 1, 1 if that agent is inside MY vision cone)
-  = 5 features x 6 agents = 30
+  = 5 features x 2 agents = 10
   Plus self heading (sin, cos) = 2
-  Total = 32  ->  OBS_DIM = 32
+  Total = 12  ->  OBS_DIM = 12
 
-Actions (Discrete 8)
+Actions (Discrete 7)
 --------------------
-  0 = stay / shoot
+  0 = stay
   1 = move N       5 = rotate left  (-45°)
   2 = move S       6 = rotate right (+45°)
-  3 = move W       7 = move forward (in heading direction)
+  3 = move W     
   4 = move E
 
 Vision cone
 -----------
   Half-angle  = 45°  (90° total)
-  Max range   = 4 cells?
+  Max range   = 4 cells
   An enemy inside the cone + no wall blocking -> shoot probability applied each step
 
 Map
 ---
   grid, 0 = floor, 1 = wall
-  Agents cannot enter wall cells.
+  Agents cannot enter wall cells nor shoot through them.
 """
 
 import functools
@@ -57,15 +52,15 @@ HP_MAX     = 5
 SHOOT_PROB = 0.4         # hit probability per step if enemy is in cone
 CONE_HALF  = math.radians(45)
 CONE_RANGE = 4           # cells
-OBS_DIM    = 32
+OBS_DIM    = 12
 
 HEADINGS = [0, 45, 90, 135, 180, 225, 270, 315]   # degrees, 0 = East
 
 # Static map:  1 = wall, 0 = open
 MAP = np.array(generate_shooter_map(GRID), dtype=np.int8)
 
-RED_SPAWNS  = [(1,1),(2,1),(1,2)]
-BLUE_SPAWNS = [(GRID-1,1),(GRID-1,2),(GRID-1,3)]
+RED_SPAWNS  = [(1,1)]
+BLUE_SPAWNS = [(GRID-2,GRID-2)]
 
 # ── colour palette ────────────────────────────────────────────────────────────
 C_BG        = ( 20,  22,  28)
@@ -123,8 +118,8 @@ def _in_cone(ax, ay, a_deg, bx, by) -> bool:
 
 # ── environment ───────────────────────────────────────────────────────────────
 
-class ShooterEnvironment(ParallelEnv):
-    metadata = {"name": "shooter_3v3_v0", "render_fps": 10}
+class ShooterEnvironment_1v1(ParallelEnv):
+    metadata = {"name": "shooter_1v1_v0", "render_fps": 10}
 
     def __init__(self, render_mode: Optional[str] = None,
                  cell_size: int = CELL, fps: int = 10):
@@ -133,8 +128,8 @@ class ShooterEnvironment(ParallelEnv):
         self.fps         = fps
 
         self.possible_agents = [
-            "red_0","red_1","red_2",
-            "blue_0","blue_1","blue_2",
+            "red_0",
+            "blue_0",
         ]
         self._agent_team = {a: a.split("_")[0] for a in self.possible_agents}
         self._agent_idx  = {a: i for i, a in enumerate(self.possible_agents)}
@@ -160,7 +155,7 @@ class ShooterEnvironment(ParallelEnv):
 
     @functools.lru_cache(maxsize=None)
     def action_space(self, agent):
-        return Discrete(8)
+        return Discrete(7)
 
     # ── reset ─────────────────────────────────────────────────────────────────
 
@@ -204,10 +199,6 @@ class ShooterEnvironment(ParallelEnv):
             elif act == 4: nx += 1                          # E
             elif act == 5: nd = (nd - 45) % 360            # rotate L
             elif act == 6: nd = (nd + 45) % 360            # rotate R
-            elif act == 7:                                  # move forward
-                dvx, dvy = _deg_to_vec(self._deg[a])
-                nx = int(round(self._x[a] + dvx))
-                ny = int(round(self._y[a] + dvy))
 
             # clamp + wall check
             nx = max(0, min(GRID-1, nx))
@@ -402,6 +393,6 @@ class ShooterEnvironment(ParallelEnv):
 # ── quick sanity test ─────────────────────────────────────────────────────────
 if __name__ == "__main__":
     from pettingzoo.test import parallel_api_test
-    env = ShooterEnvironment()
+    env = ShooterEnvironment_1v1()
     parallel_api_test(env, num_cycles=10_000)
     print("API test passed.")

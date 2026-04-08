@@ -8,7 +8,7 @@ from pettingzoo_env.prisoner_env import PrisonerEnvironment
 
 DEVICE          = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 MAX_CYCLES      = 125
-TOTAL_EPISODES  = 200
+TOTAL_EPISODES  = 2
 VERBOSE_RATE    = 50
 
 def batchify_obs(obs, device):
