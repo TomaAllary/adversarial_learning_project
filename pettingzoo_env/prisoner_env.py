@@ -52,9 +52,6 @@ class PrisonerEnvironment(ParallelEnv):
         self._closed = False
 
 
-
-
-
     def reset(self, seed=None, options=None):
         """
         Reset set the environment to a starting point.

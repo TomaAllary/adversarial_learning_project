@@ -10,10 +10,18 @@
             "justMyCode": true
         },
         {
-            "name": "Train Agent",
+            "name": "Train Agent (Prisoner Guard)",
             "type": "debugpy",
             "request": "launch",
-            "module": "pettingzoo_env.agent",
+            "module": "pettingzoo_env.train",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+                {
+            "name": "Train Agent (Shooter)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "pettingzoo_env.train_shooter",
             "console": "integratedTerminal",
             "justMyCode": true
         },
