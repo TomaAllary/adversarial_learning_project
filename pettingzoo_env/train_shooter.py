@@ -8,7 +8,7 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
-from pettingzoo_env.shooter_env_3v3 import ShooterEnvironment_3v3, OBS_DIM
+from pettingzoo_env.shooter_env import ShooterEnvironment, OBS_DIM
 from pettingzoo_env.ppo import PPO
 
 
@@ -107,7 +107,7 @@ def train(env, agents):
 # ── demo render ───────────────────────────────────────────────────────────────
 
 def render_demo(agents, n_episodes=3):
-    env = ShooterEnvironment_3v3(render_mode="human", fps=6)
+    env = ShooterEnvironment(render_mode="human", fps=6)
     for a in agents.values():
         a.eval()
 
@@ -133,7 +133,7 @@ def render_demo(agents, n_episodes=3):
 
 if __name__ == "__main__":
 
-    env = ShooterEnvironment_3v3(render_mode=None)
+    env = ShooterEnvironment(render_mode=None)
     num_actions = env.action_space(env.possible_agents[0]).n
 
     agents = {

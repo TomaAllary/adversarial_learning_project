@@ -1,6 +1,6 @@
 import random
 
-def generate_shooter_map(size=25, seed=None):
+def generate_shooter_map(size=25, spawns=[], seed=None):
     random.seed(seed)
 
     # Initialize empty map
@@ -32,6 +32,9 @@ def generate_shooter_map(size=25, seed=None):
                 ]
 
                 for cx, cy in coords:
+                    # Check if this cell is a spawn point; if so, skip it
+                    if (cx, cy) in spawns:
+                        continue
                     if 0 < cx < size-1 and 0 < cy < size-1:
                         grid[cx][cy] = 1
 
