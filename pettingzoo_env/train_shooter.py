@@ -10,6 +10,7 @@ from tqdm import tqdm
 
 from pettingzoo_env.shooter_env import ShooterEnvironment, OBS_DIM
 from pettingzoo_env.ppo import PPO
+from pettingzoo_env.scripted_shooter_agent import ScriptedShooterAgent
 
 
 DEVICE         = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -35,8 +36,7 @@ def empty_buffers(agents, obs_dim, max_cycles):
 
 
 # ── training loop ─────────────────────────────────────────────────────────────
-
-def train(env, agents):
+def train(env, agents, fix_blue_team=False, fix_red_team=False):
     for episode in tqdm(range(TOTAL_EPISODES)):
         next_obs, _ = env.reset(seed=None)
         rb           = empty_buffers(env.possible_agents, OBS_DIM, MAX_CYCLES)
@@ -52,22 +52,34 @@ def train(env, agents):
                     obs_t = torch.tensor(
                         next_obs[a], dtype=torch.float32, device=DEVICE
                     ).unsqueeze(0)
-                    act, lp, _, val = agents[a].get_action_and_value(obs_t)
+                    
+                    if isinstance(agents[a], ScriptedShooterAgent):
+                        act = agents[a].get_action_and_value(obs_t)
+                        act = torch.Tensor([act])
+                    else:
+                        act, lp, _, val = agents[a].get_action_and_value(obs_t)
+                        logprobs[a] = lp.squeeze(0)
+                        values[a]   = val.squeeze(0)
+                        
                     actions[a]  = act.squeeze(0)
-                    logprobs[a] = lp.squeeze(0)
-                    values[a]   = val.squeeze(0)
 
                 step_actions = {a: actions[a].item() for a in alive_agents}
                 next_obs, rewards, terms, truncs, _ = env.step(step_actions)
 
                 for a in alive_agents:
+                    total_ret[a]           += rewards[a]
+                    
+                    if fix_blue_team and "blue" in a:
+                        continue
+                    if fix_red_team and "red" in a:
+                        continue
+                    
                     rb[a]["obs"][step]      = torch.tensor(next_obs[a], dtype=torch.float32, device=DEVICE)
                     rb[a]["actions"][step]  = actions[a]
                     rb[a]["logprobs"][step] = logprobs[a]
                     rb[a]["rewards"][step]  = torch.tensor(rewards[a], dtype=torch.float32, device=DEVICE)
                     rb[a]["terms"][step]    = float(terms[a])
                     rb[a]["values"][step]   = values[a].flatten()
-                    total_ret[a]           += rewards[a]
 
                 end_step = step + 1
                 if any(terms.values()) or any(truncs.values()):
@@ -77,6 +89,12 @@ def train(env, agents):
         # PPO update for each agent
         metrics = {}
         for a in env.possible_agents:
+            
+            if fix_blue_team and "blue" in a:
+                continue
+            if fix_red_team and "red" in a:
+                continue
+                
             if end_step < 2:
                 metrics[a] = {"pg_loss": 0, "v_loss": 0, "entropy": 0, "loss": 0}
                 continue
@@ -99,13 +117,17 @@ def train(env, agents):
                 team_ret = sum(total_ret[a] for a in env.possible_agents if team in a)
                 print(f"  {team.upper()} total return: {team_ret:+.2f}")
             for a in env.possible_agents:
-                print(f"  [{a}]  ret={total_ret[a]:+.2f}  "
-                      f"loss={metrics[a]['loss']:.4f}  "
-                      f"ent={metrics[a]['entropy']:.3f}")
+                if fix_blue_team and "blue" in a:
+                    print(f"  [{a}]  ret={total_ret[a]:+.2f}  ")
+                elif fix_red_team and "red" in a:
+                    print(f"  [{a}]  ret={total_ret[a]:+.2f}  ")
+                else:
+                    print(f"  [{a}]  ret={total_ret[a]:+.2f}  "
+                        f"loss={metrics[a]['loss']:.4f}  "
+                        f"ent={metrics[a]['entropy']:.3f}")
 
 
 # ── demo render ───────────────────────────────────────────────────────────────
-
 def render_demo(agents, n_episodes=3):
     env = ShooterEnvironment(render_mode="human", fps=6)
     for a in agents.values():
@@ -120,8 +142,11 @@ def render_demo(agents, n_episodes=3):
                 actions = {}
                 for a in env.possible_agents:
                     obs_t = torch.tensor(obs[a], dtype=torch.float32, device=DEVICE).unsqueeze(0)
-                    act, _, _, _ = agents[a].get_action_and_value(obs_t)
-                    actions[a] = act.item()
+                    if isinstance(agents[a], ScriptedShooterAgent):
+                        actions[a] = agents[a].get_action_and_value(obs_t)
+                    else:
+                        act, _, _, _ = agents[a].get_action_and_value(obs_t)
+                        actions[a] = act.item()
                 obs, _, terms, truncs, _ = env.step(actions)
                 env.render()
                 time.sleep(1.0 / 6)
@@ -137,12 +162,16 @@ if __name__ == "__main__":
     num_actions = env.action_space(env.possible_agents[0]).n
 
     agents = {
-        a: PPO(num_actions=num_actions, obs_dim=OBS_DIM).to(DEVICE)
-        for a in env.possible_agents
+        env.possible_agents[i]: PPO(num_actions=num_actions, obs_dim=OBS_DIM).to(DEVICE)
+        for i in range(int(len(env.possible_agents)  /2))
     }
+    for i in range(int(len(env.possible_agents) / 2), len(env.possible_agents)):
+       agents[env.possible_agents[i]] = ScriptedShooterAgent(num_agents=len(env.possible_agents))
+        
     print(f"Training on {DEVICE}  |  agents: {list(agents.keys())}")
 
-    train(env, agents)
+    train(env, agents, fix_blue_team=True)
+    #train(env, agents)
 
     # Render an example
     render_demo(agents)
