@@ -9,14 +9,14 @@ Teams
 Observation per agent  (flat float32 vector, length = OBS_DIM)
 --------------------------------------------------------------
 For each of the N agents (self, then teammates, then enemies):
-- Surrounding grid (9)      (All grid spaces around agent)
-- norm_x, norm_y (2N)       (normalize position, 0-1 each, Using last known position for enemy team)
-- time_since_seen (N/2)     (number of steps since last seen, 0 if currently visible, normalized with MAX_STEPS, for other agents)
-- hp_ratio (N)              (0-1, for N agents)
-- in_my_cone (N/2)          (0 or 1, 1 if that agent is inside MY vision cone)
-  = 3*N + 2*(N/2) = 4*N - 2 + 9
+- Surrounding grid (GRIDxGRID)  (All grid spaces around agent)
+- norm_x, norm_y (2N)           (normalize position, 0-1 each, Using last known position for enemy team)
+- time_since_seen (N/2)         (number of steps since last seen, 0 if currently visible, normalized with MAX_STEPS, for other agents)
+- hp_ratio (N)                  (0-1, for N agents)
+- in_my_cone (N/2)              (0 or 1, 1 if that agent is inside MY vision cone)
+  = 3*N + 2*(N/2) = 4*N + (GRIDxGRID)
   Plus self heading (sin, cos) = 2
-  Total = 4*N - 2 + 2  ->  OBS_DIM = 4*N + 9
+  Total = 4*N + 2  ->  OBS_DIM = 4*N + 2 + (GRIDxGRID)
 
 Actions (Discrete 7)
 --------------------
@@ -59,7 +59,7 @@ HP_MAX     = 5
 SHOOT_PROB = 0.4 # hit probability per step if enemy is in cone
 CONE_HALF  = math.radians(45)
 CONE_RANGE = 4 # cells
-OBS_DIM    = N_AGENTS*2*4 + 9 # 6 features for N agent for 2 teams + surrounding
+OBS_DIM    = N_AGENTS*2*4 + 2 + GRID*GRID # features for N agent for 2 teams + MAP
 
 RED_SPAWNS  = [(1, i) for i in range(1, 1+N_AGENTS)]
 BLUE_SPAWNS = [(GRID-2, GRID-1-i) for i in range(1, 1+N_AGENTS)]
@@ -87,15 +87,6 @@ C_HP_OK     = ( 50, 220,  90)
 
 
 # ── helpers ───────────────────────────────────────────────────────────────────
-def get_surrounding(grid, x, y):
-    surrounding = []
-    for dy in (-1, 0, 1):
-        for dx in (-1, 0, 1):  
-            nx, ny = x + dx, y + dy
-            surrounding.append(grid[ny][nx])
-    
-    return surrounding
-
 def _deg_to_vec(deg: float):
     rad = math.radians(deg)
     return math.cos(rad), math.sin(rad)   # (dx, dy) in grid space  (y-down)
@@ -287,7 +278,7 @@ class ShooterEnvironment(ParallelEnv):
     # ── observation builder ───────────────────────────────────────────────────
     def _observe(self, agent) -> np.ndarray:
         team  = self._agent_team[agent]
-        order = []
+        order = [agent]
         # teammates first, then enemies
         for a in self.possible_agents:
             if a != agent and self._agent_team[a] == team:
@@ -296,12 +287,12 @@ class ShooterEnvironment(ParallelEnv):
             if self._agent_team[a] != team:
                 order.append(a)
                 
-        surrounding = get_surrounding(MAP, self._x[agent], self._y[agent])
+        surrounding = MAP
 
-        norm_x = [self._x[agent] / (GRID-1)]
-        norm_y = [self._y[agent] / (GRID-1)]
+        norm_x = []
+        norm_y = []
         time_since_seen = []
-        hp_ratio = [self._hp[agent] / HP_MAX]
+        hp_ratio = []
         in_my_cone = []
         
         for i, a in enumerate(order):
@@ -319,7 +310,7 @@ class ShooterEnvironment(ParallelEnv):
 
 
         feats = [
-            *surrounding,
+            *surrounding.ravel(),  # GRID*GRID
             *norm_x, *norm_y,
             *time_since_seen,
             *hp_ratio,

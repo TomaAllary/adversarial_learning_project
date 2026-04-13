@@ -1,3 +1,6 @@
+from datetime import datetime
+import os
+
 import numpy as np
 import torch
 import torch.nn as nn
@@ -19,7 +22,7 @@ MAX_GRAD_NORM = 0.5
 
 
 class PPO(nn.Module):
-    def __init__(self, num_actions: int, obs_dim: int):
+    def __init__(self, num_actions: int, obs_dim: int, save_path, agent_name):
         super().__init__()
         self.lr = LR
         self.gamma = GAMMA
@@ -29,6 +32,10 @@ class PPO(nn.Module):
         self.vf_coef = VF_COEF
         self.batch_size = BATCH_SIZE
         self.update_epochs = UPDATE_EPOCHS
+
+        name = f"PPO_{datetime.now().strftime('%Y%m%d_%H%M')}"
+        self._folder = os.path.join(save_path, name, agent_name)
+        os.makedirs(self._folder, exist_ok=True)
 
         self.network = nn.Sequential(
             self._layer_init(nn.Linear(obs_dim, 256)), nn.Tanh(),
@@ -121,9 +128,31 @@ class PPO(nn.Module):
                 entropy_last = entropy.mean().item()
                 loss_last    = loss.item()
 
-        return {
+
+        results = {
             "pg_loss": pg_loss_last,
             "v_loss":  v_loss_last,
             "entropy": entropy_last,
             "loss":    loss_last,
         }
+        with open(os.path.join(self._folder, "metrics.txt"), "a", encoding="utf-8") as file:
+            file.write(f"pg_loss: {results['pg_loss']}, v_loss: {results['v_loss']}, entropy: {results['entropy']}, loss: {results['loss']}\n")
+            file.write("-"*50 + "\n")
+        return results
+    
+    def save(self, ):
+        full_path = os.path.join(self._folder, "model.pt")
+        torch.save({
+            "model_state":     self.state_dict(),
+            "optimizer_state": self.optimizer.state_dict(),
+        }, full_path)
+
+        print(f"############ Saved model checkpoint to {full_path} ############")
+ 
+    @classmethod
+    def load(cls, path: str, num_actions: int, obs_dim: int, device=torch.device("cpu")):
+        agent = cls(num_actions=num_actions, obs_dim=obs_dim).to(device)
+        checkpoint = torch.load(path, map_location=device)
+        agent.load_state_dict(checkpoint["model_state"])
+        agent.optimizer.load_state_dict(checkpoint["optimizer_state"])
+        return agent

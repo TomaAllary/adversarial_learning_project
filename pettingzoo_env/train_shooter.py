@@ -15,7 +15,8 @@ from pettingzoo_env.scripted_shooter_agent import ScriptedShooterAgent
 
 DEVICE         = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 MAX_CYCLES     = 200        # must match shooter_env.MAX_STEPS
-TOTAL_EPISODES = 1
+TOTAL_EPISODES = 10000000
+MAX_TIME_MINUTES = 30
 VERBOSE_RATE   = 50
 
 
@@ -37,7 +38,12 @@ def empty_buffers(agents, obs_dim, max_cycles):
 
 # ── training loop ─────────────────────────────────────────────────────────────
 def train(env, agents, fix_blue_team=False, fix_red_team=False):
+    start_time = time.time()
     for episode in tqdm(range(TOTAL_EPISODES)):
+        if (time.time() - start_time) > MAX_TIME_MINUTES * 60:
+            print(f"\nReached max training time of {MAX_TIME_MINUTES} minutes. Ending training.")
+            break
+        
         next_obs, _ = env.reset(seed=None)
         rb           = empty_buffers(env.possible_agents, OBS_DIM, MAX_CYCLES)
         total_ret    = {a: 0.0 for a in env.possible_agents}
@@ -162,7 +168,7 @@ if __name__ == "__main__":
     num_actions = env.action_space(env.possible_agents[0]).n
 
     agents = {
-        env.possible_agents[i]: PPO(num_actions=num_actions, obs_dim=OBS_DIM).to(DEVICE)
+        env.possible_agents[i]: PPO(num_actions=num_actions, obs_dim=OBS_DIM, save_path=f"checkpoints/PPO", agent_name=env.possible_agents[i]).to(DEVICE)
         for i in range(int(len(env.possible_agents)  /2))
     }
     for i in range(int(len(env.possible_agents) / 2), len(env.possible_agents)):
@@ -171,7 +177,9 @@ if __name__ == "__main__":
     print(f"Training on {DEVICE}  |  agents: {list(agents.keys())}")
 
     train(env, agents, fix_blue_team=True)
-    #train(env, agents)
+
+    agents["red_0"].save()
+    # agent = PPO.load("checkpoints/PPO/red_0.pt", num_actions=num_actions, obs_dim=OBS_DIM, device=DEVICE)
 
     # Render an example
     render_demo(agents)

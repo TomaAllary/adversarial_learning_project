@@ -1,4 +1,7 @@
+from collections import deque
 import random
+
+import numpy as np
 
 def generate_shooter_map(size=25, spawns=[], seed=None):
     random.seed(seed)
@@ -52,3 +55,45 @@ def generate_shooter_map(size=25, spawns=[], seed=None):
                 grid[i][size-1-col] = 1
 
     return grid
+
+def get_surrounding(grid, x, y):
+    surrounding = []
+    for dy in (-1, 0, 1):
+        for dx in (-1, 0, 1):  
+            nx, ny = x + dx, y + dy
+            surrounding.append(grid[ny][nx])
+    
+    return surrounding
+
+# ── BFS pathfinder ────────────────────────────────────────────────────────
+def bfs_path(grid_map: np.ndarray, start: tuple[int, int],
+                goal: tuple[int, int]) -> list[tuple[int, int]]:
+    """Return a list of (x, y) grid cells from start (exclusive) to goal
+    (inclusive).  grid_map is indexed [y, x] where 1 = wall.
+    Returns an empty list if no path exists."""
+    if start == goal:
+        return []
+
+    h, w = grid_map.shape
+    visited = {start}
+    # queue holds (current_pos, path_so_far)
+    queue = deque([(start, [])])
+
+    while queue:
+        (cx, cy), path = queue.popleft()
+        for dx, dy in ((0, -1), (0, 1), (-1, 0), (1, 0)):  # N S W E
+            nx, ny = cx + dx, cy + dy
+            if not (0 <= nx < w and 0 <= ny < h):
+                continue
+            if grid_map[ny, nx] == 1:   # wall
+                continue
+            npos = (nx, ny)
+            if npos in visited:
+                continue
+            visited.add(npos)
+            new_path = path + [npos]
+            if npos == goal:
+                return new_path
+            queue.append((npos, new_path))
+
+    return []   # unreachable
