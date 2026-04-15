@@ -51,11 +51,13 @@ class ScriptedShooterAgent(nn.Module):
         # hp indices for enemies start at hp_start + agent_per_team
         # Find the first alive enemy (hp > 0) and grab their last-known position
         target_x, target_y = None, None
+        target_time_since_lkp = 0
         for e_idx in range(agent_per_team, self._num_agents):
             hp_idx = hp_start + e_idx
             if obs[hp_idx].item() > 0:
                 target_x = self._denorm(obs[pos_x_start + e_idx].item())
                 target_y = self._denorm(obs[pos_y_start + e_idx].item())
+                target_time_since_lkp = obs[pos_x_start + (self._num_agents*2) + e_idx - agent_per_team].item()
                 break
 
         if target_x is None:
@@ -71,16 +73,21 @@ class ScriptedShooterAgent(nn.Module):
         self.path = bfs_path(MAP, start, self.goal)
 
         # If close, turn to face target
-        if len(self.path) < 3:
-            cos_h, sin_h = obs[-2].item(), obs[-1].item()
-            current_heading = math.degrees(math.atan2(sin_h, cos_h)) % 360
-            target_heading = self.angle_to_target(self_x, self_y, target_x, target_y)
 
-            # Shortest angular difference in (-180, 180)
-            heading_diff = (target_heading - current_heading + 180) % 360 - 180
-            if   heading_diff >  DEG_EPS: return 6   # turn right  (counter-clockwise)
-            elif heading_diff < -DEG_EPS: return 5   # turn left (clockwise)
-            else:                   return 0 
+        if len(self.path) < 3:
+            if(target_time_since_lkp > 0.001):
+                # Random movement to try to find target again
+                return np.random.choice([1, 2, 3, 4])
+            else:
+                cos_h, sin_h = obs[-2].item(), obs[-1].item()
+                current_heading = math.degrees(math.atan2(sin_h, cos_h)) % 360
+                target_heading = self.angle_to_target(self_x, self_y, target_x, target_y)
+
+                # Shortest angular difference in (-180, 180)
+                heading_diff = (target_heading - current_heading + 180) % 360 - 180
+                if   heading_diff >  DEG_EPS: return 6   # turn right  (counter-clockwise)
+                elif heading_diff < -DEG_EPS: return 5   # turn left (clockwise)
+                else:                   return 0 
 
         # Otherwise, follow path and consume waypoint
         next_x, next_y = self.path.pop(0)

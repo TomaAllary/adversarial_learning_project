@@ -150,8 +150,13 @@ class PPO(nn.Module):
         print(f"############ Saved model checkpoint to {full_path} ############")
  
     @classmethod
-    def load(cls, path: str, num_actions: int, obs_dim: int, device=torch.device("cpu")):
-        agent = cls(num_actions=num_actions, obs_dim=obs_dim).to(device)
+    def load(cls, path: str, num_actions: int, obs_dim: int, agent_name: str, device=torch.device("cpu")):
+        agent = cls(
+            num_actions=num_actions, 
+            obs_dim=obs_dim,
+            save_path="None",
+            agent_name=agent_name,
+        ).to(device)
         checkpoint = torch.load(path, map_location=device)
         agent.load_state_dict(checkpoint["model_state"])
         agent.optimizer.load_state_dict(checkpoint["optimizer_state"])

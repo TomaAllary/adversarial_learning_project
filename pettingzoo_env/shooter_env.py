@@ -52,7 +52,7 @@ from pettingzoo_env.utils import generate_shooter_map
 
 # ── constants ─────────────────────────────────────────────────────────────────
 N_AGENTS   = 1 # per team
-GRID       = 17
+GRID       = 10
 CELL       = 48 # pixels per cell
 MAX_STEPS  = 200
 HP_MAX     = 5
@@ -66,7 +66,9 @@ BLUE_SPAWNS = [(GRID-2, GRID-1-i) for i in range(1, 1+N_AGENTS)]
 
 # Static map:  1 = wall, 0 = open
 MAP = np.array(generate_shooter_map(GRID, spawns=RED_SPAWNS + BLUE_SPAWNS), dtype=np.int8)
-
+MAP_IS_REGEN = True
+MAP_EP_COUNT = 0
+MAP_LIFETIME = 1000 # steps after which map is regenerated (if MAP_IS_REGEN)
 
 # ── colour palette ────────────────────────────────────────────────────────────
 C_BG        = ( 20,  22,  28)
@@ -166,9 +168,16 @@ class ShooterEnvironment(ParallelEnv):
         return Discrete(7)
 
     # ── reset ─────────────────────────────────────────────────────────────────
-    def reset(self, seed=None, options=None):
+    def reset(self, seed=None):
         if seed is not None:
             random.seed(seed); np.random.seed(seed)
+
+        if MAP_IS_REGEN and seed is None and MAP_IS_REGEN:
+            global MAP_EP_COUNT, MAP, MAP_LIFETIME
+            if MAP_EP_COUNT % MAP_LIFETIME == 0:
+                MAP = np.array(generate_shooter_map(GRID, spawns=RED_SPAWNS + BLUE_SPAWNS), dtype=np.int8)
+                print(f"Generated new map (episode {MAP_EP_COUNT})")
+            MAP_EP_COUNT += 1
 
         self.agents   = list(self.possible_agents)
         self.timestep = 0
