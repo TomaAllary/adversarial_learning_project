@@ -15,10 +15,10 @@ from pettingzoo_env.scripted_shooter_agent import ScriptedShooterAgent
 
 DEVICE         = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 MAX_CYCLES     = 200        # must match shooter_env.MAX_STEPS
-TOTAL_EPISODES = 10
-MAX_TIME_MINUTES = 30
-VERBOSE_RATE   = 50
-SAVE_RATE      = 50
+TOTAL_EPISODES = 1000000000
+MAX_TIME_MINUTES = 60 * 24
+VERBOSE_RATE   = 100
+SAVE_RATE      = 1000
 
 
 # ── helpers ───────────────────────────────────────────────────────────────────
