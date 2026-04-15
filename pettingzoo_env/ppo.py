@@ -60,7 +60,7 @@ class PPO(nn.Module):
             action = probs.sample()
         return action, probs.log_prob(action), probs.entropy(), self.critic(hidden)
 
-    def update(self, rb_obs, rb_actions, rb_logprobs, rb_rewards, rb_terms, rb_values, end_step):
+    def update(self, rb_obs, rb_actions, rb_logprobs, rb_rewards, rb_terms, rb_values, end_step, log=False):
         """
         GAE advantage estimation + PPO update.
         All buffers are shape [MAX_CYCLES, 1, ...] — we strip the middle dim.
@@ -128,16 +128,23 @@ class PPO(nn.Module):
                 entropy_last = entropy.mean().item()
                 loss_last    = loss.item()
 
-
+        sum_of_rewards = rewards.sum().item()
         results = {
             "pg_loss": pg_loss_last,
             "v_loss":  v_loss_last,
             "entropy": entropy_last,
             "loss":    loss_last,
+            "sum_of_rewards": sum_of_rewards,
         }
-        with open(os.path.join(self._folder, "metrics.txt"), "a", encoding="utf-8") as file:
-            file.write(f"pg_loss: {results['pg_loss']}, v_loss: {results['v_loss']}, entropy: {results['entropy']}, loss: {results['loss']}\n")
-            file.write("-"*50 + "\n")
+        if log:
+            with open(os.path.join(self._folder, "metrics.txt"), "a", encoding="utf-8") as file:
+                file.write(
+                    f"pg_loss: {results['pg_loss']}," +
+                    f"v_loss: {results['v_loss']}," +
+                    f"entropy: {results['entropy']}," +
+                    f"loss: {results['loss']}," +
+                    f"sum_of_rewards: {results['sum_of_rewards']}\n")
+                file.write("-"*50 + "\n")
         return results
     
     def save(self, ):

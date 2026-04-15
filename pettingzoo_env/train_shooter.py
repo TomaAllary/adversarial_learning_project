@@ -15,7 +15,7 @@ from pettingzoo_env.scripted_shooter_agent import ScriptedShooterAgent
 
 DEVICE         = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 MAX_CYCLES     = 200        # must match shooter_env.MAX_STEPS
-TOTAL_EPISODES = 1000000000
+TOTAL_EPISODES = 3_000_000
 MAX_TIME_MINUTES = 60 * 24
 VERBOSE_RATE   = 100
 SAVE_RATE      = 1000
@@ -113,6 +113,7 @@ def train(env, agents, fix_blue_team=False, fix_red_team=False):
                 rb[a]["terms"].unsqueeze(1),
                 rb[a]["values"].unsqueeze(1),
                 end_step,
+                log= episode % VERBOSE_RATE == 0
             )
             metrics[a] = m
 
@@ -174,7 +175,7 @@ if __name__ == "__main__":
     num_actions = env.action_space(env.possible_agents[0]).n
 
     agents = {
-        # env.possible_agents[i]: PPO.load("checkpoints/PPO/PPO_20260413_1739/red_0/model.pt", num_actions=num_actions, obs_dim=OBS_DIM, agent_name=env.possible_agents[i], device=DEVICE)
+        # env.possible_agents[i]: PPO.load("checkpoints/PPO/PPO_20260415_1158/red_0/model.pt", num_actions=num_actions, obs_dim=OBS_DIM, agent_name=env.possible_agents[i], device=DEVICE)
         env.possible_agents[i]: PPO(num_actions=num_actions, obs_dim=OBS_DIM, save_path=f"checkpoints/PPO", agent_name=env.possible_agents[i]).to(DEVICE)
         for i in range(int(len(env.possible_agents)  /2))
     }
