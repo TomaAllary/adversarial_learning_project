@@ -8,14 +8,14 @@ Teams
 
 Observation per agent  (flat float32 vector, length = OBS_DIM)
 --------------------------------------------------------------
-For each of the N agents (self, then teammates, then enemies), 6 features:
-- norm_x, norm_y (2N)        (normalize position, 0-1 each, Using last known position for enemy team)
-- time_since_seen (N/2)     (number of steps since last seen, 0 if currently visible, normalized with MAX_STEPS, for other agents)
-- hp_ratio (N)              (0-1, for N agents)
-- in_my_cone (N/2)          (0 or 1, 1 if that agent is inside MY vision cone)
-  = 3*N + 2*(N/2) = 4*N - 2
-  Plus self heading (sin, cos) = 2
-  Total = 4*N - 2 + 2  ->  OBS_DIM = 4*N
+For each of the N agents (self, then teammates, then enemies):
+- grid (GRIDxGRID)              (All grid spaces wall/empty)
+- norm_x, norm_y (2N)           (normalize position, 0-1 each)
+- hp_ratio (N)                  (0-1, for N agents)
+- in_my_cone (N/2)              (0 or 1, 1 if that agent is inside MY vision cone)
+- heading (sin, cos) (2N)        (heading as unit vector)
+  = 5*N + (N/2) = 5.5*N + (GRIDxGRID)
+  Total ->  OBS_DIM = 5.5*N + (GRIDxGRID)
 
 Actions (Discrete 7)
 --------------------
@@ -47,27 +47,45 @@ import numpy as np
 import pygame
 from gymnasium.spaces import Box, Discrete
 from pettingzoo import ParallelEnv
-from pettingzoo_env.utils import generate_shooter_map
+from pettingzoo_env.utils import normalize
+
 
 # ── constants ─────────────────────────────────────────────────────────────────
 N_AGENTS   = 1 # per team
-GRID       = 17
+GRID       = 15
 CELL       = 48 # pixels per cell
-MAX_STEPS  = 200
+MAX_STEPS  = 500
 HP_MAX     = 5
-SHOOT_PROB = 0.4 # hit probability per step if enemy is in cone
+SHOOT_PROB = 1.0 # hit probability per step if enemy is in cone
 CONE_HALF  = math.radians(45)
 CONE_RANGE = 4 # cells
-OBS_DIM    = N_AGENTS*2*4 # 6 features for N agent for 2 teams
+OBS_DIM    = int(N_AGENTS*2*5.5 + GRID*GRID) # features for N agent for 2 teams + MAP
 
-HEADINGS = [0, 45, 90, 135, 180, 225, 270, 315]   # degrees, 0 = East
+STEP_REWARD = -0.5 / 200 
+HIT_REWARD  = 0.1
+KILL_REWARD = 1.0
 
 RED_SPAWNS  = [(1, i) for i in range(1, 1+N_AGENTS)]
 BLUE_SPAWNS = [(GRID-2, GRID-1-i) for i in range(1, 1+N_AGENTS)]
 
 # Static map:  1 = wall, 0 = open
-MAP = np.array(generate_shooter_map(GRID, spawns=RED_SPAWNS + BLUE_SPAWNS), dtype=np.int8)
-
+MAP = np.array([
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+    [1,0,0,0,0,0,1,0,1,0,0,0,0,0,1],
+    [1,0,1,1,0,0,0,0,0,0,0,1,1,0,1],
+    [1,0,1,0,0,0,0,0,0,0,0,0,1,0,1],
+    [1,0,0,0,1,0,0,0,0,0,1,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,1,0,0,0,0,1,1,1,0,0,0,0,1,1],
+    [1,0,0,0,0,0,1,0,1,0,0,0,0,0,1],
+    [1,1,0,0,0,0,1,1,1,0,0,0,0,1,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,1,0,0,0,0,0,1,0,0,0,1],
+    [1,0,1,0,0,0,0,0,0,0,0,0,1,0,1],
+    [1,0,1,1,0,0,0,0,0,0,0,1,1,0,1],
+    [1,0,0,0,0,0,1,0,1,0,0,0,0,0,1],
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+])
 
 # ── colour palette ────────────────────────────────────────────────────────────
 C_BG        = ( 20,  22,  28)
@@ -132,8 +150,6 @@ class ShooterEnvironment(ParallelEnv):
 
         # agent setup
         self.possible_agents = []
-        self._agents_lkp = {} # last known position per agent for each agent
-        self._agents_lkp_time = {} # time since last seen per agent for each agent
         self._agents_in_cone = {} # whether each agent is currently in the vision cone of each other agent
         self._agent_team = {}
         self._agent_idx  = {}
@@ -167,7 +183,7 @@ class ShooterEnvironment(ParallelEnv):
         return Discrete(7)
 
     # ── reset ─────────────────────────────────────────────────────────────────
-    def reset(self, seed=None, options=None):
+    def reset(self, seed=None):
         if seed is not None:
             random.seed(seed); np.random.seed(seed)
 
@@ -185,8 +201,6 @@ class ShooterEnvironment(ParallelEnv):
             # last known position for each agent (for obs when not visible)
             for j, enemy in enumerate(self.possible_agents):
                 if self._agent_team[enemy] != self._agent_team[a]:
-                    self._agents_lkp[(a, enemy)] = (spawns[j][0], spawns[j][1])
-                    self._agents_lkp_time[(a, enemy)] = 0
                     self._agents_in_cone[(a, enemy)] = False
 
         obs   = {a: self._observe(a) for a in self.agents}
@@ -195,7 +209,7 @@ class ShooterEnvironment(ParallelEnv):
 
     # ── step ──────────────────────────────────────────────────────────────────
     def step(self, actions):
-        rewards     = {a: 0.0 for a in self.agents}
+        rewards     = {a: STEP_REWARD for a in self.agents} # small negative reward each step to encourage faster resolution
         terminations= {a: False for a in self.agents}
         truncations = {a: False for a in self.agents}
 
@@ -230,25 +244,18 @@ class ShooterEnvironment(ParallelEnv):
                     continue
 
                 self._agents_in_cone[(a, e)] = False
-                if _has_los(MAP, self._x[a], self._y[a], self._x[e], self._y[e]):
-                    # update last known position
-                    self._agents_lkp[(a, e)] = (self._x[e], self._y[e])
-                    self._agents_lkp_time[(a, e)] = 0
+                if _in_cone(self._x[a], self._y[a], self._deg[a], self._x[e], self._y[e]):
+                    if _has_los(MAP, self._x[a], self._y[a], self._x[e], self._y[e]):
 
-                    if _in_cone(self._x[a], self._y[a], self._deg[a], self._x[e], self._y[e]):
                         self._agents_in_cone[(a, e)] = True
                         if random.random() < SHOOT_PROB:
                             self._hp[e] -= 1
-                            rewards[a]  += 0.1
                             self._hit_flash[e] = 4   # flash frames
                             if self._hp[e] <= 0:
                                 self._hp[e]    = 0
                                 self._alive[e] = False
-                                rewards[a]    += 1.0
-                                rewards[e]    -= 1.0
-                else:
-                    # increase time since last seen
-                    self._agents_lkp_time[(a, e)] += 1
+                                rewards[a]    += HIT_REWARD
+                                rewards[e]    -= HIT_REWARD
 
         # — check win condition —
         red_alive  = any(self._alive[a] for a in self.possible_agents if "red"  in a)
@@ -258,10 +265,10 @@ class ShooterEnvironment(ParallelEnv):
         if game_over:
             for a in self.agents:
                 terminations[a] = True
-                if "red"  in a and not red_alive:  rewards[a] -= 2.0
-                if "blue" in a and not blue_alive: rewards[a] -= 2.0
-                if "red"  in a and not blue_alive: rewards[a] += 2.0
-                if "blue" in a and not red_alive:  rewards[a] += 2.0
+                if "red"  in a and not red_alive:  rewards[a] -= KILL_REWARD
+                if "blue" in a and not blue_alive: rewards[a] -= KILL_REWARD
+                if "red"  in a and not blue_alive: rewards[a] += KILL_REWARD
+                if "blue" in a and not red_alive:  rewards[a] += KILL_REWARD
 
         self.timestep += 1
         if self.timestep >= MAX_STEPS:
@@ -277,20 +284,9 @@ class ShooterEnvironment(ParallelEnv):
         return obs, rewards, terminations, truncations, infos
 
     # ── observation builder ───────────────────────────────────────────────────
-#     Observation per agent  (flat float32 vector, length = OBS_DIM)
-# --------------------------------------------------------------
-# For each of the N agents (self, then teammates, then enemies), 6 features:
-# - norm_x, norm_y (2N)        (normalize position, 0-1 each, Using last known position for enemy team)
-# - time_since_seen (N/2)     (number of steps since last seen, 0 if currently visible, normalized with MAX_STEPS, for other agents)
-# - hp_ratio (N)              (0-1, for N agents)
-# - in_my_cone (N/2)          (0 or 1, 1 if that agent is inside MY vision cone)
-#   = 3*N + 2*(N/2) = 4*N - 2
-#   Plus self heading (sin, cos) = 2
-#   Total = 4*N - 2 + 2  ->  OBS_DIM = 4*N
-
     def _observe(self, agent) -> np.ndarray:
         team  = self._agent_team[agent]
-        order = []
+        order = [agent]
         # teammates first, then enemies
         for a in self.possible_agents:
             if a != agent and self._agent_team[a] == team:
@@ -298,39 +294,39 @@ class ShooterEnvironment(ParallelEnv):
         for a in self.possible_agents:
             if self._agent_team[a] != team:
                 order.append(a)
-
-        norm_x = [self._x[agent] / (GRID-1)]
-        norm_y = [self._y[agent] / (GRID-1)]
-        time_since_seen = []
-        hp_ratio = [self._hp[agent] / HP_MAX]
+                
+        norm_x = []
+        norm_y = []
+        hp_ratio = []
         in_my_cone = []
+        headings = []
         
         for i, a in enumerate(order):
+            # HP ratio
             hp_ratio.append(self._hp[a] / HP_MAX)
-                                                 
-            if i < N_AGENTS:   # teammates: use actual position
-                norm_x.append(self._x[a] / (GRID-1))
-                norm_y.append(self._y[a] / (GRID-1))
-            else: # enemies: use last known position and time since seen
-                lkpx, lkpy = self._agents_lkp[(agent, a)]
-                norm_x.append(lkpx / (GRID-1))
-                norm_y.append(lkpy / (GRID-1))
-                time_since_seen.append(self._agents_lkp_time[(agent, a)] / MAX_STEPS)
+
+            # in_my_cone (only for enemies)                         
+            if i >= N_AGENTS:   # Enemy: look if in vision cone
                 in_my_cone.append(float(self._agents_in_cone[(agent, a)]))
 
+            # Exact position (normalized)
+            norm_x.append(self._x[a] / (GRID-1))
+            norm_y.append(self._y[a] / (GRID-1))
+
+            # Heading as unit vector
+            vx, vy = _deg_to_vec(self._deg[a])
+            headings += [vx, vy]
 
         feats = [
-            *norm_x, *norm_y,
-            *time_since_seen,
-            *hp_ratio,
-            *in_my_cone
+            *MAP.ravel(),  # GRID*GRID
+            *norm_x, *norm_y, # 2N
+            *hp_ratio, # N
+            *in_my_cone, # N/2
+            *headings, # 2N
         ]
-        vx, vy = _deg_to_vec(self._deg[agent]) # self heading
-        feats += [vx, vy]
         return np.array(feats, dtype=np.float32)
 
     # ── pygame rendering ──────────────────────────────────────────────────────
-
     def _init_pygame(self):
         if self._screen is not None:
             return

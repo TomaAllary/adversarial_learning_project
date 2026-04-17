@@ -1,8 +1,12 @@
+from datetime import datetime
+import os
+
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.distributions.categorical import Categorical
+from pettingzoo_env.utils import time_average
 
 
 # ───────────────────────────────PPO PARAMETERS───────────────────────────────
@@ -53,7 +57,7 @@ class PPO(nn.Module):
             action = probs.sample()
         return action, probs.log_prob(action), probs.entropy(), self.critic(hidden)
 
-    def update(self, rb_obs, rb_actions, rb_logprobs, rb_rewards, rb_terms, rb_values, end_step):
+    def update(self, rb_obs, rb_actions, rb_logprobs, rb_rewards, rb_terms, rb_values, end_step, current_ep, log=False):
         """
         GAE advantage estimation + PPO update.
         All buffers are shape [MAX_CYCLES, 1, ...] — we strip the middle dim.
@@ -121,9 +125,33 @@ class PPO(nn.Module):
                 entropy_last = entropy.mean().item()
                 loss_last    = loss.item()
 
-        return {
+        sum_of_rewards = rewards.sum().item()
+        results = {
+            "current_ep": current_ep,
             "pg_loss": pg_loss_last,
             "v_loss":  v_loss_last,
             "entropy": entropy_last,
             "loss":    loss_last,
+            "sum_of_rewards": sum_of_rewards,
         }
+        return results
+    
+    def save(self, save_path):
+        full_path = os.path.join(save_path, "model.pt")
+        torch.save({
+            "model_state":     self.state_dict(),
+            "optimizer_state": self.optimizer.state_dict(),
+        }, full_path)
+
+        print(f"############ Saved model checkpoint to {full_path} ############")
+ 
+    @classmethod
+    def load(cls, path: str, num_actions: int, obs_dim: int, device=torch.device("cpu")):
+        agent = cls(
+            num_actions=num_actions, 
+            obs_dim=obs_dim,
+        ).to(device)
+        checkpoint = torch.load(path, map_location=device)
+        agent.load_state_dict(checkpoint["model_state"])
+        agent.optimizer.load_state_dict(checkpoint["optimizer_state"])
+        return agent
