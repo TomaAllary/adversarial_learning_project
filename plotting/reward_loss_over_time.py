@@ -65,7 +65,7 @@ def plot_rewards(rewards, smooth_window=10):
     plt.show()
 
 
-pg, v, ent, loss, rew = parse_ppo_log("checkpoints/PPO/PPO_20260416_2154/red_0/metrics.txt")
+pg, v, ent, loss, rew = parse_ppo_log("checkpoints/PPO/PPO_20260417_1110/red_0/metrics.txt")
 
 # plot_losses(pg, v, ent, loss)
 plot_rewards(rew)

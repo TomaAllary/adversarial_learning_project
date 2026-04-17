@@ -18,7 +18,7 @@ from pettingzoo_env.scripted_shooter_agent import ScriptedShooterAgent
 DEVICE         = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 MAX_CYCLES     = 1000        # must match shooter_env.MAX_STEPS
 TOTAL_EPISODES = 3_000_000
-MAX_TIME_MINUTES = 60 * 9
+MAX_TIME_MINUTES = 60 * 50
 VERBOSE_RATE   = 100
 SAVE_RATE      = 1000
 
@@ -114,6 +114,13 @@ def train(env, agents, fix_blue_team=False, fix_red_team=False):
             if end_step < 2:
                 metrics[a] = {"pg_loss": 0, "v_loss": 0, "entropy": 0, "loss": 0}
                 continue
+
+            # Make sure to use last value on truncation, not 0.0 like in termination (death)
+            with torch.no_grad():
+                last_obs = torch.tensor(next_obs[a], dtype=torch.float32, device=DEVICE).unsqueeze(0)
+                was_truncated = any(truncs.values())  # timed out, not dead
+                bootstrap_value = agents[a].get_value(last_obs).squeeze() if was_truncated else torch.tensor(0.0)
+
             m = agents[a].update(
                 rb[a]["obs"].unsqueeze(1),
                 rb[a]["actions"].unsqueeze(1),
@@ -122,8 +129,7 @@ def train(env, agents, fix_blue_team=False, fix_red_team=False):
                 rb[a]["terms"].unsqueeze(1),
                 rb[a]["values"].unsqueeze(1),
                 end_step,
-                current_ep=episode,
-                log = episode % VERBOSE_RATE == 0
+                bootstrap_value=bootstrap_value,
             )
             metrics[a] = m
 
@@ -154,7 +160,7 @@ def train(env, agents, fix_blue_team=False, fix_red_team=False):
         if episode % (SAVE_RATE) == 0:
             for a in env.possible_agents:
                 if isinstance(agents[a], PPO):
-                    agents[a].save(save_folder[a])
+                    agents[a].save(os.path.join(save_folder[a], f"model_ep_{episode}.pt"))
 
 
 # ── demo render ───────────────────────────────────────────────────────────────
@@ -192,15 +198,15 @@ if __name__ == "__main__":
     num_actions = env.action_space(env.possible_agents[0]).n
 
     agents = {
-        # env.possible_agents[i]: PPO.load("checkpoints/PPO/PPO_20260417_1040/red_0/model.pt", num_actions=num_actions, obs_dim=OBS_DIM, device=DEVICE)
-        env.possible_agents[i]: PPO(num_actions=num_actions, obs_dim=OBS_DIM).to(DEVICE)
+        env.possible_agents[i]: PPO.load("checkpoints/PPO/PPO_20260417_1110/red_0/model_ep_9000.pt", num_actions=num_actions, obs_dim=OBS_DIM, device=DEVICE)
+        # env.possible_agents[i]: PPO(num_actions=num_actions, obs_dim=OBS_DIM).to(DEVICE)
         for i in range(int(len(env.possible_agents)  /2))
     }
     for i in range(int(len(env.possible_agents) / 2), len(env.possible_agents)):
        agents[env.possible_agents[i]] = ScriptedShooterAgent(num_agents=len(env.possible_agents))
         
     print(f"Training on {DEVICE}  |  agents: {list(agents.keys())}")
-    train(env, agents, fix_blue_team=True)
+    # train(env, agents, fix_blue_team=True)
 
     # Render an example
     render_demo(agents)
