@@ -31,8 +31,8 @@ def plot_losses(pg_losses, v_losses, entropies, losses):
 
     plt.plot(pg_losses, label="Policy Loss (pg_loss)")
     plt.plot(v_losses, label="Value Loss (v_loss)")
-    plt.plot(losses, label="Total Loss")
-    plt.plot(entropies, label="Entropy")
+    # plt.plot(losses, label="Total Loss")
+    # plt.plot(entropies, label="Entropy")
 
     plt.xlabel("Training Iterations")
     plt.ylabel("Value")
@@ -65,7 +65,7 @@ def plot_rewards(rewards, smooth_window=10):
     plt.show()
 
 
-pg, v, ent, loss, rew = parse_ppo_log("checkpoints/PPO/PPO_20260415_1642/red_0/metrics.txt")
+pg, v, ent, loss, rew = parse_ppo_log("checkpoints/PPO/PPO_20260416_2154/red_0/metrics.txt")
 
 # plot_losses(pg, v, ent, loss)
 plot_rewards(rew)

@@ -6,6 +6,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.distributions.categorical import Categorical
+from pettingzoo_env.utils import time_average
 
 
 # ───────────────────────────────PPO PARAMETERS───────────────────────────────
@@ -22,7 +23,7 @@ MAX_GRAD_NORM = 0.5
 
 
 class PPO(nn.Module):
-    def __init__(self, num_actions: int, obs_dim: int, save_path, agent_name):
+    def __init__(self, num_actions: int, obs_dim: int):
         super().__init__()
         self.lr = LR
         self.gamma = GAMMA
@@ -32,10 +33,6 @@ class PPO(nn.Module):
         self.vf_coef = VF_COEF
         self.batch_size = BATCH_SIZE
         self.update_epochs = UPDATE_EPOCHS
-
-        name = f"PPO_{datetime.now().strftime('%Y%m%d_%H%M')}"
-        self._folder = os.path.join(save_path, name, agent_name)
-        os.makedirs(self._folder, exist_ok=True)
 
         self.network = nn.Sequential(
             self._layer_init(nn.Linear(obs_dim, 256)), nn.Tanh(),
@@ -60,7 +57,7 @@ class PPO(nn.Module):
             action = probs.sample()
         return action, probs.log_prob(action), probs.entropy(), self.critic(hidden)
 
-    def update(self, rb_obs, rb_actions, rb_logprobs, rb_rewards, rb_terms, rb_values, end_step, log=False):
+    def update(self, rb_obs, rb_actions, rb_logprobs, rb_rewards, rb_terms, rb_values, end_step, current_ep, log=False):
         """
         GAE advantage estimation + PPO update.
         All buffers are shape [MAX_CYCLES, 1, ...] — we strip the middle dim.
@@ -130,25 +127,17 @@ class PPO(nn.Module):
 
         sum_of_rewards = rewards.sum().item()
         results = {
+            "current_ep": current_ep,
             "pg_loss": pg_loss_last,
             "v_loss":  v_loss_last,
             "entropy": entropy_last,
             "loss":    loss_last,
             "sum_of_rewards": sum_of_rewards,
         }
-        if log:
-            with open(os.path.join(self._folder, "metrics.txt"), "a", encoding="utf-8") as file:
-                file.write(
-                    f"pg_loss: {results['pg_loss']}," +
-                    f"v_loss: {results['v_loss']}," +
-                    f"entropy: {results['entropy']}," +
-                    f"loss: {results['loss']}," +
-                    f"sum_of_rewards: {results['sum_of_rewards']}\n")
-                file.write("-"*50 + "\n")
         return results
     
-    def save(self, ):
-        full_path = os.path.join(self._folder, "model.pt")
+    def save(self, save_path):
+        full_path = os.path.join(save_path, "model.pt")
         torch.save({
             "model_state":     self.state_dict(),
             "optimizer_state": self.optimizer.state_dict(),
@@ -157,12 +146,10 @@ class PPO(nn.Module):
         print(f"############ Saved model checkpoint to {full_path} ############")
  
     @classmethod
-    def load(cls, path: str, num_actions: int, obs_dim: int, agent_name: str, device=torch.device("cpu")):
+    def load(cls, path: str, num_actions: int, obs_dim: int, device=torch.device("cpu")):
         agent = cls(
             num_actions=num_actions, 
             obs_dim=obs_dim,
-            save_path="None",
-            agent_name=agent_name,
         ).to(device)
         checkpoint = torch.load(path, map_location=device)
         agent.load_state_dict(checkpoint["model_state"])

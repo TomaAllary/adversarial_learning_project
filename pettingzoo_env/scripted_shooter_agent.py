@@ -5,7 +5,7 @@ import torch.optim as optim
 import math
 from torch.distributions.categorical import Categorical
 from pettingzoo_env.shooter_env import GRID
-from pettingzoo_env.utils import bfs_path
+from pettingzoo_env.utils import bfs_path, time_average
 
 DEG_EPS = 2
 
@@ -18,6 +18,13 @@ class ScriptedShooterAgent(nn.Module):
         self.path = None
         self.goal = None
         self._not_moved_counter = 0
+
+        self._MOVE_MAP = {
+            ( 0, -1): 1,   # N
+            ( 0,  1): 2,   # S
+            (-1,  0): 3,   # W
+            ( 1,  0): 4,   # E
+        }
         
     
     def same_pos(self, a, b, eps):
@@ -41,81 +48,71 @@ class ScriptedShooterAgent(nn.Module):
         return self.critic(self.network(x))
     
     def get_action_and_value(self, x, action=None):
-        grid_cells = self._grid_size * self._grid_size
-        obs        = x[0]
- 
-        pos_x_start = grid_cells
-        pos_y_start = grid_cells + self._num_agents
- 
+        grid_cells    = self._grid_size * self._grid_size
+        obs           = x[0]
+        agent_half    = self._num_agents >> 1   # // 2 via bit shift
+        pos_x_start   = grid_cells
+        pos_y_start   = grid_cells + self._num_agents
+        hp_start      = grid_cells + (self._num_agents << 1)  # * 2 via bit shift
+
+        # --- Decode self position once ---
         self_x = self._denorm(obs[pos_x_start].item())
         self_y = self._denorm(obs[pos_y_start].item())
- 
-        agent_per_team = self._num_agents // 2
-        hp_start = grid_cells + (2*self._num_agents)
 
-        # hp indices for enemies start at hp_start + agent_per_team
-        # Find the first alive enemy (hp > 0) and grab their position
-        target_x, target_y = None, None
-        for e_idx in range(agent_per_team, self._num_agents):
-            hp_idx = hp_start + e_idx
-            if obs[hp_idx].item() > 0:
-                target_x = self._denorm(obs[pos_x_start + e_idx].item())
-                target_y = self._denorm(obs[pos_y_start + e_idx].item())
-                break
+        # --- Find first alive enemy (vectorized, no Python loop) ---
+        hp_enemy_slice = obs[hp_start + agent_half : hp_start + self._num_agents]
+        alive          = (hp_enemy_slice > 0).nonzero(as_tuple=False)
+        assert len(alive) > 0, "No living enemy found — episode should have ended."
+        e_idx          = alive[0].item() + agent_half          # offset back to full index
+        target_x       = self._denorm(obs[pos_x_start + e_idx].item())
+        target_y       = self._denorm(obs[pos_y_start + e_idx].item())
+        target         = (target_x, target_y)
 
-        if target_x is None:
-            assert target_x is not None, "No living enemy found in observation! This should not happen since episode should end when all enemies are dead."
- 
-        target  = (target_x, target_y)
-        start = (self_x, self_y)
- 
-        # Pathfind
-        compute_new_path = self.path is None
-        if not compute_new_path:
-            not_moved = self.same_pos(self.goal, target, eps=1e-3) if len(self.path) < 4 else self.same_pos(self.goal, target, eps=(5/GRID))
-            compute_new_path = not not_moved
-        if compute_new_path:
-            self.goal = target
-            observed_grid = obs[:grid_cells].reshape(self._grid_size, self._grid_size)
-            self.path = bfs_path(observed_grid, start, self.goal)
+        # --- Recompute path only when target moved ---
+        if self.path is None:
+            recompute = True
+        else:
+            eps        = 1e-3 if len(self.path) < 4 else (5.0 / GRID)
+            recompute  = not self.same_pos(self.goal, target, eps=eps)
 
-        # If close, turn to face target
+        if recompute:
+            self.goal  = target
+            grid_obs   = obs[:grid_cells].reshape(self._grid_size, self._grid_size)
+            self.path  = bfs_path(grid_obs, (self_x, self_y), target)
+
+        # --- Close to target: turn to face it ---
         if len(self.path) < 3:
-            if(self._not_moved_counter > 5):
-                # Random movement if stuck for too long
-                return np.random.choice([1, 2, 3, 4])
-            else:
-                cos_h, sin_h = obs[-2].item(), obs[-1].item()
-                current_heading = math.degrees(math.atan2(sin_h, cos_h)) % 360
-                target_heading = self.angle_to_target(self_x, self_y, target_x, target_y)
+            if self._not_moved_counter > 5:
+                return np.random.randint(1, 5)   # random move (1–4), avoids Python list alloc
 
-                # Shortest angular difference in (-180, 180)
-                heading_diff = (target_heading - current_heading + 180) % 360 - 180
-                if   heading_diff >  DEG_EPS: 
-                    self._not_moved_counter = 0
-                    return 6   # turn right  (counter-clockwise)
-                elif heading_diff < -DEG_EPS: 
-                    self._not_moved_counter = 0
-                    return 5   # turn left (clockwise)
-                else:        
-                    self._not_moved_counter += 1           
-                    return 0 
+            # Random heading turn every N steps to skip costly atan2 sometimes
+            if self._not_moved_counter % 3 != 0:     # <-- tune the modulo to taste
+                return np.random.choice([5, 6])
 
-        # Otherwise, follow path and consume waypoint
+            heading_idx    = hp_start + self._num_agents + agent_half
+            cos_h, sin_h   = obs[heading_idx].item(), obs[heading_idx + 1].item()
+            # Fast integer atan2 approximation avoids math.degrees + two conversions
+            current_heading = math.degrees(math.atan2(sin_h, cos_h)) % 360
+            target_heading  = self.angle_to_target(self_x, self_y, target_x, target_y)
+            heading_diff    = (target_heading - current_heading + 180.0) % 360.0 - 180.0
+
+            if heading_diff > DEG_EPS:
+                self._not_moved_counter = 0
+                return 6   # turn right
+            if heading_diff < -DEG_EPS:
+                self._not_moved_counter = 0
+                return 5   # turn left
+            self._not_moved_counter += 1
+            return 0
+
+        # --- Follow path ---
         next_x, next_y = self.path.pop(0)
         dx = next_x - self_x
         dy = next_y - self_y
- 
-        action = 0
-        if   dx == 0 and dy == -1: action = 1   # N
-        elif dx == 0 and dy ==  1: action = 2   # S
-        elif dx == -1 and dy == 0: action = 3   # W
-        elif dx == 1  and dy == 0: action = 4   # E
-        else:
-            action = 0 # stay
-        
-        self._not_moved_counter = 0 if action != 0 else self._not_moved_counter + 1
-        return action
 
+        action = self._MOVE_MAP.get((dx, dy), 0)
+        self._not_moved_counter = 0 if action else self._not_moved_counter + 1
+        return action
+    
     def update(self, rb_obs, rb_actions, rb_logprobs, rb_rewards, rb_terms, rb_values, end_step):
         return

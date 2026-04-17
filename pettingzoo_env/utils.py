@@ -1,8 +1,40 @@
 from collections import deque
 import random
+import time
+from functools import wraps
 
 import numpy as np
 
+
+def time_average(window_size=50):
+    def decorator(func):
+        # This list lives "inside" the decorator and persists across calls
+        history = []
+        
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            start = time.perf_counter()
+            result = func(*args, **kwargs)
+            end = time.perf_counter()
+            
+            # Record current time and maintain the window size
+            history.append(end - start)
+            if len(history) > window_size:
+                history.pop(0)
+            
+            avg = sum(history) / len(history)
+            print(f"{func.__name__} | Current: {end-start:.4f}s | Avg (last {len(history)}): {avg:.4f}s")
+            return result
+        return wrapper
+    return decorator
+# Usage:
+# @time_average(window_size=10)
+# def my_function():
+#     time.sleep(1)
+
+
+def normalize(value, min_value, max_value):
+    return (value - min_value) / (max_value - min_value)
 
 def generate_shooter_map(size=25, spawns=None, seed=None):
     if spawns is None:

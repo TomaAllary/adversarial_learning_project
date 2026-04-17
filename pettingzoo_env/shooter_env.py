@@ -13,9 +13,9 @@ For each of the N agents (self, then teammates, then enemies):
 - norm_x, norm_y (2N)           (normalize position, 0-1 each)
 - hp_ratio (N)                  (0-1, for N agents)
 - in_my_cone (N/2)              (0 or 1, 1 if that agent is inside MY vision cone)
-  = 3*N + (N/2) = 3.5*N + (GRIDxGRID)
-  Plus self heading (sin, cos) = 2
-  Total ->  OBS_DIM = 3.5*N + 2 + (GRIDxGRID)
+- heading (sin, cos) (2N)        (heading as unit vector)
+  = 5*N + (N/2) = 5.5*N + (GRIDxGRID)
+  Total ->  OBS_DIM = 5.5*N + (GRIDxGRID)
 
 Actions (Discrete 7)
 --------------------
@@ -47,27 +47,45 @@ import numpy as np
 import pygame
 from gymnasium.spaces import Box, Discrete
 from pettingzoo import ParallelEnv
-from pettingzoo_env.utils import generate_shooter_map
+from pettingzoo_env.utils import normalize
+
 
 # ── constants ─────────────────────────────────────────────────────────────────
 N_AGENTS   = 1 # per team
 GRID       = 15
 CELL       = 48 # pixels per cell
-MAX_STEPS  = 200
+MAX_STEPS  = 500
 HP_MAX     = 5
-SHOOT_PROB = 0.4 # hit probability per step if enemy is in cone
+SHOOT_PROB = 1.0 # hit probability per step if enemy is in cone
 CONE_HALF  = math.radians(45)
 CONE_RANGE = 4 # cells
-OBS_DIM    = int(N_AGENTS*2*3.5 + 2 + GRID*GRID) # features for N agent for 2 teams + MAP
+OBS_DIM    = int(N_AGENTS*2*5.5 + GRID*GRID) # features for N agent for 2 teams + MAP
+
+STEP_REWARD = -0.5 / 200 
+HIT_REWARD  = 0.1
+KILL_REWARD = 1.0
 
 RED_SPAWNS  = [(1, i) for i in range(1, 1+N_AGENTS)]
 BLUE_SPAWNS = [(GRID-2, GRID-1-i) for i in range(1, 1+N_AGENTS)]
 
 # Static map:  1 = wall, 0 = open
-MAP = np.array(generate_shooter_map(GRID, spawns=RED_SPAWNS + BLUE_SPAWNS), dtype=np.int8)
-MAP_IS_REGEN = True
-MAP_EP_COUNT = 0
-MAP_LIFETIME = 200 # steps after which map is regenerated (if MAP_IS_REGEN)
+MAP = np.array([
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+    [1,0,0,0,0,0,1,0,1,0,0,0,0,0,1],
+    [1,0,1,1,0,0,0,0,0,0,0,1,1,0,1],
+    [1,0,1,0,0,0,0,0,0,0,0,0,1,0,1],
+    [1,0,0,0,1,0,0,0,0,0,1,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,1,0,0,0,0,1,1,1,0,0,0,0,1,1],
+    [1,0,0,0,0,0,1,0,1,0,0,0,0,0,1],
+    [1,1,0,0,0,0,1,1,1,0,0,0,0,1,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,1,0,0,0,0,0,1,0,0,0,1],
+    [1,0,1,0,0,0,0,0,0,0,0,0,1,0,1],
+    [1,0,1,1,0,0,0,0,0,0,0,1,1,0,1],
+    [1,0,0,0,0,0,1,0,1,0,0,0,0,0,1],
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+])
 
 # ── colour palette ────────────────────────────────────────────────────────────
 C_BG        = ( 20,  22,  28)
@@ -169,13 +187,6 @@ class ShooterEnvironment(ParallelEnv):
         if seed is not None:
             random.seed(seed); np.random.seed(seed)
 
-        if MAP_IS_REGEN and seed is None and MAP_IS_REGEN:
-            global MAP_EP_COUNT, MAP, MAP_LIFETIME
-            if MAP_EP_COUNT % MAP_LIFETIME == 0:
-                MAP = np.array(generate_shooter_map(GRID, spawns=RED_SPAWNS + BLUE_SPAWNS), dtype=np.int8)
-                print(f"Generated new map (episode {MAP_EP_COUNT})")
-            MAP_EP_COUNT += 1
-
         self.agents   = list(self.possible_agents)
         self.timestep = 0
         self._hit_flash = {}
@@ -198,7 +209,7 @@ class ShooterEnvironment(ParallelEnv):
 
     # ── step ──────────────────────────────────────────────────────────────────
     def step(self, actions):
-        rewards     = {a: -5.0/200.0 for a in self.agents} # small negative reward each step to encourage faster resolution
+        rewards     = {a: STEP_REWARD for a in self.agents} # small negative reward each step to encourage faster resolution
         terminations= {a: False for a in self.agents}
         truncations = {a: False for a in self.agents}
 
@@ -239,13 +250,12 @@ class ShooterEnvironment(ParallelEnv):
                         self._agents_in_cone[(a, e)] = True
                         if random.random() < SHOOT_PROB:
                             self._hp[e] -= 1
-                            rewards[a]  += 0.1
                             self._hit_flash[e] = 4   # flash frames
                             if self._hp[e] <= 0:
                                 self._hp[e]    = 0
                                 self._alive[e] = False
-                                rewards[a]    += 1.0
-                                rewards[e]    -= 1.0
+                                rewards[a]    += HIT_REWARD
+                                rewards[e]    -= HIT_REWARD
 
         # — check win condition —
         red_alive  = any(self._alive[a] for a in self.possible_agents if "red"  in a)
@@ -255,10 +265,10 @@ class ShooterEnvironment(ParallelEnv):
         if game_over:
             for a in self.agents:
                 terminations[a] = True
-                if "red"  in a and not red_alive:  rewards[a] -= 10.0
-                if "blue" in a and not blue_alive: rewards[a] -= 10.0
-                if "red"  in a and not blue_alive: rewards[a] += 10.0
-                if "blue" in a and not red_alive:  rewards[a] += 10.0
+                if "red"  in a and not red_alive:  rewards[a] -= KILL_REWARD
+                if "blue" in a and not blue_alive: rewards[a] -= KILL_REWARD
+                if "red"  in a and not blue_alive: rewards[a] += KILL_REWARD
+                if "blue" in a and not red_alive:  rewards[a] += KILL_REWARD
 
         self.timestep += 1
         if self.timestep >= MAX_STEPS:
@@ -289,6 +299,7 @@ class ShooterEnvironment(ParallelEnv):
         norm_y = []
         hp_ratio = []
         in_my_cone = []
+        headings = []
         
         for i, a in enumerate(order):
             # HP ratio
@@ -302,18 +313,20 @@ class ShooterEnvironment(ParallelEnv):
             norm_x.append(self._x[a] / (GRID-1))
             norm_y.append(self._y[a] / (GRID-1))
 
+            # Heading as unit vector
+            vx, vy = _deg_to_vec(self._deg[a])
+            headings += [vx, vy]
+
         feats = [
             *MAP.ravel(),  # GRID*GRID
             *norm_x, *norm_y, # 2N
             *hp_ratio, # N
-            *in_my_cone # N/2
+            *in_my_cone, # N/2
+            *headings, # 2N
         ]
-        vx, vy = _deg_to_vec(self._deg[agent]) # self heading
-        feats += [vx, vy]
         return np.array(feats, dtype=np.float32)
 
     # ── pygame rendering ──────────────────────────────────────────────────────
-
     def _init_pygame(self):
         if self._screen is not None:
             return

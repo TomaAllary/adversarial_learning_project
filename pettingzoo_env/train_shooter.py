@@ -2,6 +2,8 @@
 trains 6 independent PPO agents on the 3v3 ShooterEnvironment.
 """
 import argparse
+from datetime import datetime
+import os
 import time
 
 import numpy as np
@@ -14,9 +16,9 @@ from pettingzoo_env.scripted_shooter_agent import ScriptedShooterAgent
 
 
 DEVICE         = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-MAX_CYCLES     = 200        # must match shooter_env.MAX_STEPS
+MAX_CYCLES     = 1000        # must match shooter_env.MAX_STEPS
 TOTAL_EPISODES = 3_000_000
-MAX_TIME_MINUTES = 60 * 24
+MAX_TIME_MINUTES = 60 * 9
 VERBOSE_RATE   = 100
 SAVE_RATE      = 1000
 
@@ -39,6 +41,13 @@ def empty_buffers(agents, obs_dim, max_cycles):
 
 # ── training loop ─────────────────────────────────────────────────────────────
 def train(env, agents, fix_blue_team=False, fix_red_team=False):
+    # Paths
+    parent_folder = f"PPO_{datetime.now().strftime('%Y%m%d_%H%M')}"
+    save_folder = {}
+    for agent_name in env.possible_agents:
+        save_folder[agent_name] = os.path.join("checkpoints/PPO", parent_folder, agent_name)
+        os.makedirs(save_folder[agent_name], exist_ok=True)
+     
     start_time = time.time()
     for episode in tqdm(range(TOTAL_EPISODES)):
         if (time.time() - start_time) > MAX_TIME_MINUTES * 60:
@@ -113,11 +122,26 @@ def train(env, agents, fix_blue_team=False, fix_red_team=False):
                 rb[a]["terms"].unsqueeze(1),
                 rb[a]["values"].unsqueeze(1),
                 end_step,
-                log= episode % VERBOSE_RATE == 0
+                current_ep=episode,
+                log = episode % VERBOSE_RATE == 0
             )
             metrics[a] = m
 
         if episode % VERBOSE_RATE == 0:
+            for a in env.possible_agents:
+                if not isinstance(agents[a], PPO):
+                    continue
+
+                with open(os.path.join(save_folder[a], "metrics.txt"), "a", encoding="utf-8") as file:
+                    file.write(
+                        f"## EPISODE {episode} ## " +
+                        f"pg_loss: {metrics[a]['pg_loss']}," +
+                        f"v_loss: {metrics[a]['v_loss']}," +
+                        f"entropy: {metrics[a]['entropy']}," +
+                        f"loss: {metrics[a]['loss']}," +
+                        f"sum_of_rewards: {metrics[a]['sum_of_rewards']}\n")
+                    file.write("-"*50 + "\n")
+
             print(f"\n{'='*50}")
             print(f"  Episode {episode:4d}  |  steps: {end_step}")
             print(f"{'='*50}")
@@ -125,19 +149,12 @@ def train(env, agents, fix_blue_team=False, fix_red_team=False):
                 team_ret = sum(total_ret[a] for a in env.possible_agents if team in a)
                 print(f"  {team.upper()} total return: {team_ret:+.2f}")
             for a in env.possible_agents:
-                if fix_blue_team and "blue" in a:
                     print(f"  [{a}]  ret={total_ret[a]:+.2f}  ")
-                elif fix_red_team and "red" in a:
-                    print(f"  [{a}]  ret={total_ret[a]:+.2f}  ")
-                else:
-                    print(f"  [{a}]  ret={total_ret[a]:+.2f}  "
-                        f"loss={metrics[a]['loss']:.4f}  "
-                        f"ent={metrics[a]['entropy']:.3f}")
                     
         if episode % (SAVE_RATE) == 0:
             for a in env.possible_agents:
                 if isinstance(agents[a], PPO):
-                    agents[a].save()
+                    agents[a].save(save_folder[a])
 
 
 # ── demo render ───────────────────────────────────────────────────────────────
@@ -175,16 +192,16 @@ if __name__ == "__main__":
     num_actions = env.action_space(env.possible_agents[0]).n
 
     agents = {
-        # env.possible_agents[i]: PPO.load("checkpoints/PPO/PPO_20260415_1158/red_0/model.pt", num_actions=num_actions, obs_dim=OBS_DIM, agent_name=env.possible_agents[i], device=DEVICE)
-        env.possible_agents[i]: PPO(num_actions=num_actions, obs_dim=OBS_DIM, save_path=f"checkpoints/PPO", agent_name=env.possible_agents[i]).to(DEVICE)
+        env.possible_agents[i]: PPO.load("checkpoints/PPO/PPO_20260416_1047/red_0/model.pt", num_actions=num_actions, obs_dim=OBS_DIM, device=DEVICE)
+        # env.possible_agents[i]: PPO(num_actions=num_actions, obs_dim=OBS_DIM).to(DEVICE)
         for i in range(int(len(env.possible_agents)  /2))
     }
     for i in range(int(len(env.possible_agents) / 2), len(env.possible_agents)):
        agents[env.possible_agents[i]] = ScriptedShooterAgent(num_agents=len(env.possible_agents))
         
-    print(f"Training on {DEVICE}  |  agents: {list(agents.keys())}")
+    # print(f"Training on {DEVICE}  |  agents: {list(agents.keys())}")
 
-    train(env, agents, fix_blue_team=True)
+    # train(env, agents, fix_blue_team=True)
 
 
     # Render an example
