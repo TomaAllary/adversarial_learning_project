@@ -192,17 +192,15 @@ if __name__ == "__main__":
     num_actions = env.action_space(env.possible_agents[0]).n
 
     agents = {
-        env.possible_agents[i]: PPO.load("checkpoints/PPO/PPO_20260416_1047/red_0/model.pt", num_actions=num_actions, obs_dim=OBS_DIM, device=DEVICE)
-        # env.possible_agents[i]: PPO(num_actions=num_actions, obs_dim=OBS_DIM).to(DEVICE)
+        # env.possible_agents[i]: PPO.load("checkpoints/PPO/PPO_20260417_1040/red_0/model.pt", num_actions=num_actions, obs_dim=OBS_DIM, device=DEVICE)
+        env.possible_agents[i]: PPO(num_actions=num_actions, obs_dim=OBS_DIM).to(DEVICE)
         for i in range(int(len(env.possible_agents)  /2))
     }
     for i in range(int(len(env.possible_agents) / 2), len(env.possible_agents)):
        agents[env.possible_agents[i]] = ScriptedShooterAgent(num_agents=len(env.possible_agents))
         
-    # print(f"Training on {DEVICE}  |  agents: {list(agents.keys())}")
-
-    # train(env, agents, fix_blue_team=True)
-
+    print(f"Training on {DEVICE}  |  agents: {list(agents.keys())}")
+    train(env, agents, fix_blue_team=True)
 
     # Render an example
     render_demo(agents)
