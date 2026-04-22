@@ -1,6 +1,6 @@
 # Adversarial Learning — Tactical Shooter
 
-A research project exploring adversarial multi-agent reinforcement learning in a custom 2D tactical shooter environment. Two algorithms are implemented and compared: **PPO** (Proximal Policy Optimization) for single-team training against a fixed opponent, and **R-NaD** (Regularized Nash Dynamics) for self-play convergence to a Nash equilibrium.
+A research project exploring adversarial multi-agent reinforcement learning in a custom 2D tactical shooter environment. Two algorithms are implemented and compared: **PPO** (Proximal Policy Optimization via [Stable Baselines 3](https://stable-baselines3.readthedocs.io/)) for single-team training against a fixed opponent, and **R-NaD** (Regularized Nash Dynamics) for self-play convergence to a Nash equilibrium.
 
 ---
 
@@ -113,44 +113,24 @@ The agent controls Red; Blue is driven by an `opponent` policy. `step()` returns
 
 ## Algorithms
 
-### PPO (`pettingzoo_env/ppo.py`)
+### PPO (`pettingzoo_env/train_ppo.py`)
 
-Standard **Proximal Policy Optimization** with Generalised Advantage Estimation (GAE). Used for training individual agents against a fixed opponent.
+**Proximal Policy Optimization** via [Stable Baselines 3](https://stable-baselines3.readthedocs.io/). Red is trained as a single agent against a fixed opponent (scripted BFS or random) using `ShooterGymEnv` with `self_play=False`.
 
-| Hyperparameter             | Value                                                    |
-| -------------------------- | -------------------------------------------------------- |
-| Learning rate              | 3e-4                                                     |
-| Discount γ                | 0.99                                                     |
-| GAE λ                     | 0.95                                                     |
-| PPO clip ε                | 0.2                                                      |
-| Entropy coefficient        | 0.01                                                     |
-| Value function coefficient | 0.5                                                      |
-| Batch size                 | 64                                                       |
-| Update epochs              | 4                                                        |
-| Network                    | Linear(obs → 256) → Tanh → Linear(256 → 256) → Tanh |
+| Hyperparameter             | Value         |
+| -------------------------- | ------------- |
+| Learning rate              | 3e-4          |
+| Discount γ                | 0.99          |
+| GAE λ                     | 0.95          |
+| PPO clip ε                | 0.2           |
+| Entropy coefficient        | 0.01          |
+| Value function coefficient | 0.5           |
+| Batch size                 | 64            |
+| Update epochs              | 10            |
+| Rollout steps per env      | 2048          |
+| Network                    | MLP [256, 256] |
 
-#### Training script — `pettingzoo_env/train_shooter.py`
-
-Trains Red agents with PPO against a fixed `ScriptedShooterAgent` on Blue. Spawns 10 parallel environments and accumulates 20 rollouts before each gradient update.
-
-```python
-# Edit the main block to switch between create/load:
-agents[...] = PPO(...)                        # create fresh
-agents[...] = PPO.load("checkpoints/...", ...)  # resume
-```
-
-Constants at the top of the file control behaviour:
-
-| Constant                | Default   | Description                     |
-| ----------------------- | --------- | ------------------------------- |
-| `TOTAL_EPISODES`      | 3 000 000 | Training budget                 |
-| `MAX_TIME_MINUTES`    | 900       | Hard wall-clock limit           |
-| `N_ENV`               | 10        | Parallel environments           |
-| `ROLLOUTS_PER_UPDATE` | 20        | Episodes between gradient steps |
-| `VERBOSE_RATE`        | 100       | Print metrics every N episodes  |
-| `SAVE_RATE`           | 1000      | Checkpoint every N episodes     |
-
-Checkpoints are saved to `checkpoints/PPO/<timestamp>/<agent_name>/`.
+SB3 handles rollout collection, GAE computation, mini-batch updates, and TensorBoard logging automatically. An `EvalCallback` saves the best checkpoint and a `CheckpointCallback` saves periodic snapshots.
 
 ---
 
@@ -220,9 +200,8 @@ adversarial_learning_project/
 │
 ├── pettingzoo_env/
 │   ├── shooter_env.py               # Core PettingZoo environment
-│   ├── shooter_gym_env.py           # Gymnasium wrapper (PPO + R-NaD)
-│   ├── train_shooter.py             # PPO training script
-│   ├── ppo.py                       # PPO implementation
+│   ├── shooter_gym_env.py           # Gymnasium wrapper (SB3 PPO + R-NaD)
+│   ├── train_ppo.py             # PPO training script (Stable Baselines 3)
 │   ├── scripted_shooter_agent.py    # Rule-based BFS opponent
 │   ├── utils.py                     # BFS pathfinder, map generator, helpers
 │   └── prisoner_env.py              # Separate pursuit-evasion environment
@@ -275,7 +254,7 @@ conda install pytorch torchvision torchaudio cpuonly -c pytorch
 pip install -r requirement.txt
 ```
 
-`requirement.txt` includes: `pygame`, `numpy`, `pettingzoo`, `pymunk`, `SuperSuit`, `tensorboard`, `tqdm`, `matplotlib`, `gymnasium`.
+`requirement.txt` includes: `pygame`, `numpy`, `pettingzoo`, `pymunk`, `SuperSuit`, `tensorboard`, `tqdm`, `matplotlib`, `gymnasium`, `stable-baselines3`.
 
 ---
 
@@ -364,15 +343,73 @@ tensorboard --logdir runs/
 
 ---
 
-### PPO vs scripted opponent — `pettingzoo_env/train_shooter.py`
+### PPO vs scripted opponent — `pettingzoo_env/train_ppo.py`
 
-Trains Red agents with PPO while Blue uses the scripted BFS agent.
+Trains Red with SB3 PPO while Blue uses the scripted BFS agent (default) or a random policy.
 
 ```bash
+# Minimal — 1 M steps, 8 envs, scripted opponent
 python -m pettingzoo_env.train_shooter
+
+# Longer run on GPU with a random opponent
+python -m pettingzoo_env.train_shooter --total-timesteps 5_000_000 --n-envs 16 --opponent random --device cuda
+
+# Resume from a saved checkpoint
+python -m pettingzoo_env.train_shooter --load runs/ppo_20260101_120000/best_model.zip
 ```
 
-Edit constants at the top of the file to change the training budget, number of environments, and checkpoint rate. Comment/uncomment the `PPO.load(...)` line in `__main__` to resume from a checkpoint.
+Outputs are written to `runs/ppo_<timestamp>/`:
+
+```
+runs/ppo_20260101_120000/
+  best_model.zip           # checkpoint with highest eval mean reward
+  final_model.zip          # end-of-training snapshot
+  evaluations.npz          # EvalCallback episode rewards log
+  checkpoints/
+    ppo_shooter_50000_steps.zip
+    ppo_shooter_100000_steps.zip
+    ...
+  ppo_<timestamp>/         # TensorBoard event files
+```
+
+Launch TensorBoard:
+
+```bash
+tensorboard --logdir runs/
+```
+
+#### All arguments
+
+| Argument               | Default      | Description                                       |
+| ---------------------- | ------------ | ------------------------------------------------- |
+| `--total-timesteps`  | 1 000 000    | Training budget in env steps                      |
+| `--n-envs`           | 8            | Parallel training environments                    |
+| `--opponent`         | `scripted` | Blue policy: `scripted` or `random`             |
+| `--run-name`         | `ppo`      | Base name; timestamp is always appended           |
+| `--runs-dir`         | `runs`     | Root directory for outputs                        |
+| `--load`             | —           | Path to a `.zip` checkpoint to resume from       |
+| `--eval-freq`        | 10 000       | Evaluate every N total env steps                  |
+| `--eval-episodes`    | 20           | Episodes per evaluation round                     |
+| `--checkpoint-freq`  | 50 000       | Save a checkpoint every N total env steps         |
+| `--device`           | `auto`     | Torch device: `auto`, `cpu`, `cuda`             |
+| `--seed`             | 42           | RNG seed                                          |
+
+To load a trained model for inference:
+
+```python
+from stable_baselines3 import PPO
+from pettingzoo_env.shooter_gym_env import ShooterGymEnv
+
+env   = ShooterGymEnv(self_play=False, opponent="scripted")
+model = PPO.load("runs/ppo_20260101_120000/best_model.zip")
+
+obs, _ = env.reset()
+while True:
+    action, _ = model.predict(obs, deterministic=True)
+    obs, reward, terminated, truncated, _ = env.step(action)
+    if terminated or truncated:
+        break
+```
 
 ---
 

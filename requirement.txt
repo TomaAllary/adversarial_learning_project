@@ -6,3 +6,5 @@ SuperSuit>=3.9.0
 tensorboard>=2.11.2
 tqdm
 matplotlib
+gymnasium
+stable-baselines3>=2.3.0
