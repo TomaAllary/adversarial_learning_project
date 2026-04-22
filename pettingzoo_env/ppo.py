@@ -86,6 +86,7 @@ class PPO(nn.Module):
 
         idx = np.arange(T)
         pg_loss_last = v_loss_last = entropy_last = loss_last = 0.0
+        print(f"RAW ADV: {advantages.mean()} | {advantages.std()} | {advantages.max()}")
 
         for _ in range(self.update_epochs):
             np.random.shuffle(idx)

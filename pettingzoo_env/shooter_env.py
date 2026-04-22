@@ -54,16 +54,16 @@ from pettingzoo_env.utils import normalize
 N_AGENTS   = 1 # per team
 GRID       = 15
 CELL       = 48 # pixels per cell
-MAX_STEPS  = 500
+MAX_STEPS  = 200
 HP_MAX     = 5
 SHOOT_PROB = 1.0 # hit probability per step if enemy is in cone
 CONE_HALF  = math.radians(45)
 CONE_RANGE = 4 # cells
 OBS_DIM    = int(N_AGENTS*2*5.5 + GRID*GRID) # features for N agent for 2 teams + MAP
 
-STEP_REWARD = -0.5 / 200 
-HIT_REWARD  = 0.1
-KILL_REWARD = 1.0
+STEP_REWARD = (-0.5 / 200 ) * 20
+HIT_REWARD  = (0.1) * 20
+KILL_REWARD = (1.0) * 20
 
 RED_SPAWNS  = [(1, i) for i in range(1, 1+N_AGENTS)]
 BLUE_SPAWNS = [(GRID-2, GRID-1-i) for i in range(1, 1+N_AGENTS)]
