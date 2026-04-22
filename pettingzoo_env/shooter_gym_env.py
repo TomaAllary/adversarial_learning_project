@@ -78,12 +78,13 @@ class ShooterGymEnv(gymnasium.Env):
         self_play: bool = True,
         opponent: Union[str, Callable] = "random",
         render_mode: Optional[str] = None,
+        fps: int = 10,
     ):
         super().__init__()
         self.self_play   = self_play
         self.render_mode = render_mode
 
-        self._env = ShooterEnvironment(render_mode=render_mode)
+        self._env = ShooterEnvironment(render_mode=render_mode, fps=fps)
 
         self.observation_space = Box(
             low=0.0, high=1.0, shape=(OBS_DIM,), dtype=np.float32
@@ -153,7 +154,8 @@ class ShooterGymEnv(gymnasium.Env):
         return result
 
     def render(self):
-        """Explicit render call — also works when render_mode is None."""
+        """Forward to the underlying ShooterEnvironment renderer.
+        Only draws a frame when render_mode='human' was passed at construction."""
         return self._env.render()
 
     def close(self):
