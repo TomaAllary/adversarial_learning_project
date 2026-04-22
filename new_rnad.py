@@ -619,7 +619,7 @@ class RNaD:
         env_fn: Union[Callable[[], gym.Env], gym.Env],
         device: str = "cpu",
     ) -> "RNaD":
-        data = torch.load(path, map_location=device)
+        data = torch.load(path, map_location=device, weights_only=False)
         model = cls(env_fn, config=data["config"], device=device)
         model.params.load_state_dict(data["params"])
         model.params_target.load_state_dict(data["params_target"])
