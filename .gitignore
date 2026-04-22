@@ -398,3 +398,14 @@ FodyWeavers.xsd
 *.sln.iml
 .vscode/settings.json
 checkpoints/
+
+
+# FXP gitignore
+__pycache__
+.vscode
+.DS_Store
+build
+results
+*.egg-info
+*.pt
+*.png
