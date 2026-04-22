@@ -219,7 +219,7 @@ if __name__ == "__main__":
     num_actions = env.action_space(env.possible_agents[0]).n
 
     agents = {
-        # env.possible_agents[i]: PPO.load("checkpoints/PPO/PPO_20260421_1611/red_0/model_ep_1019.pt", num_actions=num_actions, obs_dim=OBS_DIM, device=DEVICE)
+        # env.possible_agents[i]: PPO.load("checkpoints/PPO/PPO_20260422_1424/red_0/model_ep_9019.pt", num_actions=num_actions, obs_dim=OBS_DIM, device=DEVICE)
         env.possible_agents[i]: PPO(num_actions=num_actions, obs_dim=OBS_DIM).to(DEVICE)
         for i in range(int(len(env.possible_agents)  /2))
     }
@@ -230,4 +230,4 @@ if __name__ == "__main__":
     train(env, agents, fix_blue_team=True)
 
     # Render an example
-    # render_demo(agents)
+    # render_demo(agents, n_episodes=10)

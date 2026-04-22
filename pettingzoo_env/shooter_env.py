@@ -52,13 +52,13 @@ from pettingzoo_env.utils import normalize
 
 # ── constants ─────────────────────────────────────────────────────────────────
 N_AGENTS   = 1 # per team
-GRID       = 8
+GRID       = 9
 CELL       = 48 # pixels per cell
 MAX_STEPS  = 200
 HP_MAX     = 5
 SHOOT_PROB = 1.0 # hit probability per step if enemy is in cone
 CONE_HALF  = math.radians(45)
-CONE_RANGE = 4 # cells
+CONE_RANGE = 3 # cells
 OBS_DIM    = int(N_AGENTS*2*5.5) # features for N agent for 2 teams + MAP
 
 STEP_REWARD = (-0.5 / 200 ) * 20
@@ -88,14 +88,15 @@ BLUE_SPAWNS = [(GRID-2, GRID-1-i) for i in range(1, 1+N_AGENTS)]
 # ])
 
 MAP = np.array([
-    [1,1,1,1,1,1,1,1],
-    [1,0,0,0,0,0,0,1],
-    [1,0,0,0,0,0,0,1],
-    [1,0,0,0,0,0,0,1],
-    [1,0,0,0,0,0,0,1],
-    [1,0,0,0,0,0,0,1],
-    [1,0,0,0,0,0,0,1],
-    [1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1],
+    [1,0,0,0,0,0,0,0,1],
+    [1,0,0,1,0,1,0,0,1],
+    [1,0,0,1,0,1,0,0,1],
+    [1,0,0,1,0,1,0,0,1],
+    [1,0,0,1,0,1,0,0,1],
+    [1,0,0,1,0,1,0,0,1],
+    [1,0,0,0,0,0,0,0,1],
+    [1,1,1,1,1,1,1,1,1],
 ])
 
 # ── colour palette ────────────────────────────────────────────────────────────
