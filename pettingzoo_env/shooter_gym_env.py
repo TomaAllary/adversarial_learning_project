@@ -248,7 +248,7 @@ class ShooterGymEnv(gymnasium.Env):
             from pettingzoo_env.scripted_shooter_agent import ScriptedShooterAgent
             from pettingzoo_env.shooter_env import N_AGENTS
             agent = ScriptedShooterAgent(N_AGENTS * 2)
-            return lambda obs: agent.act(obs, self._env)
+            return lambda obs: agent.get_action_and_value(obs)
         raise ValueError(
             f"Unknown opponent '{opponent}'. "
             "Use 'random', 'scripted', or a callable fn(obs) -> int."

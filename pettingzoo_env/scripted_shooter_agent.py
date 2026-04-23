@@ -48,7 +48,6 @@ class ScriptedShooterAgent(nn.Module):
         return self.critic(self.network(x))
     
     def get_action_and_value(self, x, action=None):
-        return np.random.choice([0,1,2,3,4,5,6])
         grid_cells    = self._grid_size * self._grid_size
         obs           = x[0]
         agent_half    = self._num_agents >> 1   # // 2 via bit shift
