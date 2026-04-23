@@ -24,7 +24,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import gym
+import gymnasium as gym
 
 
 # ---------------------------------------------------------------------------
@@ -507,7 +507,13 @@ class RNaD:
             self._env_fn() for _ in range(self.config.batch_size)
         ]
 
+        # Detect env capabilities once — avoids repeated hasattr in the hot loop
+        _probe_env = self._envs[0]
+        self._env_has_legal_mask = hasattr(_probe_env, "legal_actions_mask")
+        self._env_has_player_id  = hasattr(_probe_env, "current_player")
+
         self._setup_networks()
+        self._init_trajectory_buffers()
         self._entropy_schedule = EntropySchedule(
             sizes=self.config.entropy_schedule_size,
             repeats=self.config.entropy_schedule_repeats,
@@ -619,7 +625,7 @@ class RNaD:
         env_fn: Union[Callable[[], gym.Env], gym.Env],
         device: str = "cpu",
     ) -> "RNaD":
-        data = torch.load(path, map_location=device)
+        data = torch.load(path, map_location=device, weights_only=False)
         model = cls(env_fn, config=data["config"], device=device)
         model.params.load_state_dict(data["params"])
         model.params_target.load_state_dict(data["params_target"])
@@ -640,7 +646,52 @@ class RNaD:
         alpha, update_target_net = self._entropy_schedule(self.learner_steps)
         loss_val = self._update_parameters(timestep, alpha, update_target_net)
         self.learner_steps += 1
-        return {"loss": loss_val, "actor_steps": self.actor_steps, "learner_steps": self.learner_steps}
+        # Sum rewards over time for each env, average across the batch (player 0 = Red)
+        mean_reward = float(timestep["rewards"][:, :, 0].sum(axis=0).mean())
+        return {"loss": loss_val, "mean_reward": mean_reward, "actor_steps": self.actor_steps, "learner_steps": self.learner_steps}
+
+    # ------------------------------------------------------------------
+    # Trajectory buffer setup
+    # ------------------------------------------------------------------
+
+    def _init_trajectory_buffers(self):
+        """Pre-allocate trajectory buffers using pinned memory on CUDA runs.
+
+        Pinned (page-locked) CPU memory allows the CUDA DMA engine to transfer
+        directly from host to device without an intermediate staging copy,
+        and enables non_blocking=True transfers in _update_parameters.
+        On CPU runs, falls back to ordinary numpy arrays.
+        """
+        T = self.config.trajectory_max
+        B = self.config.batch_size
+        P = self.config.num_players
+        A = self.num_actions
+        use_pin = (self.device.type == "cuda")
+
+        def _buf(shape, fill=0.0):
+            t = torch.zeros(shape, dtype=torch.float32)
+            if use_pin:
+                t = t.pin_memory()
+            if fill:
+                t.fill_(fill)
+            return t
+
+        self._buf_obs_t        = _buf((T, B, self.obs_size))
+        self._buf_legal_t      = _buf((T, B, A), fill=1.0)
+        self._buf_valid_t      = _buf((T, B))
+        self._buf_player_id_t  = _buf((T, B))
+        self._buf_action_oh_t  = _buf((T, B, A))
+        self._buf_policy_t     = _buf((T, B, A))
+        self._buf_rewards_t    = _buf((T, B, P))
+
+        # Numpy views into the (optionally pinned) CPU tensors
+        self._buf_obs       = self._buf_obs_t.numpy()
+        self._buf_legal     = self._buf_legal_t.numpy()
+        self._buf_valid     = self._buf_valid_t.numpy()
+        self._buf_player_id = self._buf_player_id_t.numpy()
+        self._buf_action_oh = self._buf_action_oh_t.numpy()
+        self._buf_policy    = self._buf_policy_t.numpy()
+        self._buf_rewards   = self._buf_rewards_t.numpy()
 
     # ------------------------------------------------------------------
     # Parameter update
@@ -650,7 +701,12 @@ class RNaD:
         self, timestep: Dict[str, np.ndarray], alpha: float, update_target_net: bool
     ) -> float:
         def _t(key, dtype=torch.float32):
-            return torch.tensor(timestep[key], dtype=dtype, device=self.device)
+            # torch.from_numpy shares memory with the pinned buffer (no copy on CPU).
+            # .to(..., non_blocking=True) initiates an async DMA transfer to GPU;
+            # CUDA serializes it before the first kernel that consumes the tensor.
+            return torch.from_numpy(timestep[key]).to(
+                dtype=dtype, device=self.device, non_blocking=True
+            )
 
         obs = _t("obs")            # [T, B, obs_size]
         legal = _t("legal")        # [T, B, A]
@@ -758,43 +814,43 @@ class RNaD:
         P = self.config.num_players
         A = self.num_actions
 
-        all_obs = np.zeros((T, B, self.obs_size), dtype=np.float32)
-        all_legal = np.ones((T, B, A), dtype=np.float32)
-        all_valid = np.zeros((T, B), dtype=np.float32)
-        all_player_id = np.zeros((T, B), dtype=np.float32)
-        all_action_oh = np.zeros((T, B, A), dtype=np.float32)
-        all_policy = np.zeros((T, B, A), dtype=np.float32)
-        all_rewards = np.zeros((T, B, P), dtype=np.float32)
+        # Reuse pre-allocated (optionally pinned) buffers
+        all_obs       = self._buf_obs
+        all_legal     = self._buf_legal
+        all_valid     = self._buf_valid
+        all_player_id = self._buf_player_id
+        all_action_oh = self._buf_action_oh
+        all_policy    = self._buf_policy
+        all_rewards   = self._buf_rewards
+        all_rewards[:] = 0.0  # must zero — done envs skip reward writes
+        all_valid[:] = 0.0    # must zero — done envs skip valid writes
 
         # Reset all environments
         current_obs = np.array([_gym_reset(env) for env in self._envs], dtype=np.float32)
         done_flags = np.zeros(B, dtype=bool)
 
         for t in range(T):
-            legal = self._get_legal(done_flags)          # [B, A]
-            player_id = self._get_player_id(done_flags)  # [B]
-            valid = (~done_flags).astype(np.float32)     # [B]
+            # Write legal masks and player IDs directly into the pre-alloc buffers
+            self._fill_legal_and_player_id(t, done_flags)
+            all_valid[t] = (~done_flags).astype(np.float32)
 
             with torch.no_grad():
                 obs_t = torch.tensor(current_obs, dtype=torch.float32, device=self.device)
-                leg_t = torch.tensor(legal, dtype=torch.float32, device=self.device)
+                leg_t = torch.tensor(all_legal[t], dtype=torch.float32, device=self.device)
                 pi, _, _, _ = self.params(obs_t, leg_t)
                 pi_np = pi.cpu().numpy().astype(np.float64)
             pi_np /= pi_np.sum(axis=-1, keepdims=True)
 
-            # Sample actions (only act for non-done envs)
-            actions = np.zeros(B, dtype=int)
-            for i in range(B):
-                if not done_flags[i]:
-                    actions[i] = np.random.choice(A, p=pi_np[i])
+            # Vectorized action sampling via CDF inversion — replaces B-iteration loop
+            cumulative = pi_np.cumsum(axis=-1)                                   # [B, A]
+            u = np.random.rand(B, 1)                                             # [B, 1]
+            actions = np.clip((u > cumulative).sum(axis=-1), 0, A - 1).astype(int)  # [B]
+            # Done-env actions are sampled but never sent to the environment
 
             action_oh = np.zeros((B, A), dtype=np.float32)
             action_oh[np.arange(B), actions] = 1.0
 
             all_obs[t] = current_obs
-            all_legal[t] = legal
-            all_valid[t] = valid
-            all_player_id[t] = player_id
             all_action_oh[t] = action_oh
             all_policy[t] = pi_np.astype(np.float32)
 
@@ -808,7 +864,7 @@ class RNaD:
                 # Build per-player reward vector
                 r_arr = np.zeros(P, dtype=np.float32)
                 if np.isscalar(r):
-                    pid = int(player_id[i]) % P
+                    pid = int(all_player_id[t, i]) % P
                     r_arr[pid] = float(r)
                     if P == 2 and done:
                         r_arr[1 - pid] = -float(r)
@@ -837,16 +893,19 @@ class RNaD:
     # Environment query helpers
     # ------------------------------------------------------------------
 
-    def _get_legal(self, done_flags: np.ndarray) -> np.ndarray:
-        legal = np.ones((len(self._envs), self.num_actions), dtype=np.float32)
-        for i, env in enumerate(self._envs):
-            if not done_flags[i] and hasattr(env, "legal_actions_mask"):
-                legal[i] = env.legal_actions_mask()
-        return legal
+    def _fill_legal_and_player_id(self, t: int, done_flags: np.ndarray) -> None:
+        """Write legal masks and player IDs for timestep t directly into pre-alloc buffers.
 
-    def _get_player_id(self, done_flags: np.ndarray) -> np.ndarray:
-        player_id = np.zeros(len(self._envs), dtype=np.float32)
-        for i, env in enumerate(self._envs):
-            if not done_flags[i] and hasattr(env, "current_player"):
-                player_id[i] = float(env.current_player())
-        return player_id
+        Env capabilities are detected once at __init__ (self._env_has_legal_mask /
+        self._env_has_player_id), avoiding 51,200 hasattr calls per training step.
+        For done envs the stale buffer value persists, but valid[t,i]=0 masks it
+        in v-trace so it has no effect on the algorithm.
+        """
+        if self._env_has_legal_mask:
+            for i, env in enumerate(self._envs):
+                if not done_flags[i]:
+                    self._buf_legal[t, i] = env.legal_actions_mask()
+        if self._env_has_player_id:
+            for i, env in enumerate(self._envs):
+                if not done_flags[i]:
+                    self._buf_player_id[t, i] = float(env.current_player())

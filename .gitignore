@@ -409,3 +409,9 @@ results
 *.egg-info
 *.pt
 *.png
+
+# Training runs
+runs/
+events.out.tfevents.*
+
+settings.local.json

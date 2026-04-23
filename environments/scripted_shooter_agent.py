@@ -4,8 +4,8 @@ import torch.nn as nn
 import torch.optim as optim
 import math
 from torch.distributions.categorical import Categorical
-from pettingzoo_env.shooter_env import GRID
-from pettingzoo_env.utils import bfs_path, time_average
+from environments.shooter_env import GRID
+from environments.utils import bfs_path, time_average
 
 DEG_EPS = 2
 
@@ -48,25 +48,29 @@ class ScriptedShooterAgent(nn.Module):
         return self.critic(self.network(x))
     
     def get_action_and_value(self, x, action=None):
-        return np.random.choice([0,1,2,3,4,5,6])
-        grid_cells    = self._grid_size * self._grid_size
-        obs           = x[0]
-        agent_half    = self._num_agents >> 1   # // 2 via bit shift
-        pos_x_start   = grid_cells
-        pos_y_start   = grid_cells + self._num_agents
-        hp_start      = grid_cells + (self._num_agents << 1)  # * 2 via bit shift
+        from environments.shooter_env import MAP
+        obs         = np.asarray(x).flatten()
+        N_TOTAL     = self._num_agents          # total agents (both teams)
+        agent_half  = N_TOTAL >> 1              # agents per team
+
+        # Obs layout: [norm_x x N_TOTAL | norm_y x N_TOTAL | hp x N_TOTAL |
+        #              in_cone x agent_half | heading(vx,vy) x N_TOTAL]
+        pos_x_start   = 0
+        pos_y_start   = N_TOTAL
+        hp_start      = N_TOTAL * 2
+        heading_start = N_TOTAL * 3 + agent_half
 
         # --- Decode self position once ---
-        self_x = self._denorm(obs[pos_x_start].item())
-        self_y = self._denorm(obs[pos_y_start].item())
+        self_x = self._denorm(float(obs[pos_x_start]))
+        self_y = self._denorm(float(obs[pos_y_start]))
 
-        # --- Find first alive enemy (vectorized, no Python loop) ---
-        hp_enemy_slice = obs[hp_start + agent_half : hp_start + self._num_agents]
-        alive          = (hp_enemy_slice > 0).nonzero(as_tuple=False)
+        # --- Find first alive enemy ---
+        hp_enemy_slice = obs[hp_start + agent_half : hp_start + N_TOTAL]
+        alive          = np.nonzero(hp_enemy_slice > 0)[0]
         assert len(alive) > 0, "No living enemy found — episode should have ended."
-        e_idx          = alive[0].item() + agent_half          # offset back to full index
-        target_x       = self._denorm(obs[pos_x_start + e_idx].item())
-        target_y       = self._denorm(obs[pos_y_start + e_idx].item())
+        e_idx          = int(alive[0]) + agent_half          # offset into full agent list
+        target_x       = self._denorm(float(obs[pos_x_start + e_idx]))
+        target_y       = self._denorm(float(obs[pos_y_start + e_idx]))
         target         = (target_x, target_y)
 
         # --- Recompute path only when target moved ---
@@ -78,20 +82,17 @@ class ScriptedShooterAgent(nn.Module):
 
         if recompute:
             self.goal  = target
-            grid_obs   = obs[:grid_cells].reshape(self._grid_size, self._grid_size)
-            self.path  = bfs_path(grid_obs, (self_x, self_y), target)
+            self.path  = bfs_path(MAP, (self_x, self_y), target)
 
         # --- Close to target: turn to face it ---
         if len(self.path) < 3:
             if self._not_moved_counter > 5:
-                return np.random.randint(1, 5)   # random move (1–4), avoids Python list alloc
+                return np.random.randint(1, 5)
 
-            # Random heading turn every N steps to skip costly atan2 sometimes
-            if self._not_moved_counter % 3 != 0:     # <-- tune the modulo to taste
+            if self._not_moved_counter % 3 != 0:
                 return np.random.choice([5, 6])
 
-            heading_idx    = hp_start + self._num_agents + agent_half
-            cos_h, sin_h   = obs[heading_idx].item(), obs[heading_idx + 1].item()
+            cos_h, sin_h   = float(obs[heading_start]), float(obs[heading_start + 1])
             # Fast integer atan2 approximation avoids math.degrees + two conversions
             current_heading = math.degrees(math.atan2(sin_h, cos_h)) % 360
             target_heading  = self.angle_to_target(self_x, self_y, target_x, target_y)
