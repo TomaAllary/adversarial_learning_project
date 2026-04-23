@@ -236,6 +236,14 @@ class ShooterGymEnv(gymnasium.Env):
 
         return obs_dict["red_0"].copy(), r_red, terminated, truncated, {}
 
+    def set_render_stats(self, red_wins: int, blue_wins: int, episodes: int):
+        """Push cumulative episode stats into the renderer's HUD."""
+        self._env._render_stats = {
+            "red_wins":  red_wins,
+            "blue_wins": blue_wins,
+            "episodes":  episodes,
+        }
+
     # ── helpers ───────────────────────────────────────────────────────────────
 
     def _build_opponent(self, opponent: Union[str, Callable]) -> Callable:

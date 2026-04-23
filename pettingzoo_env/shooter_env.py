@@ -114,6 +114,10 @@ C_HP_BG     = ( 20,  20,  25)
 C_HP_RED    = (220,  50,  50)
 C_HP_BLUE   = ( 50, 130, 220)
 C_HP_OK     = ( 50, 220,  90)
+C_HUD_BG    = ( 12,  14,  20)
+C_HUD_TEXT  = (200, 200, 210)
+
+HUD_H       = 40   # pixels below the grid reserved for the two HUD rows
 
 
 # ── helpers ───────────────────────────────────────────────────────────────────
@@ -175,6 +179,7 @@ class ShooterEnvironment(ParallelEnv):
         self._screen = None
         self._clock  = None
         self._hit_flash: dict = {}   # agent → flash_ttl
+        self._render_stats: dict = {"red_wins": 0, "blue_wins": 0, "episodes": 0}
 
         # game state (filled in reset)
         self._x    = {}
@@ -343,8 +348,8 @@ class ShooterEnvironment(ParallelEnv):
             return
         pygame.init()
         W = GRID * self.cell_size
-        self._screen = pygame.display.set_mode((W, W))
-        pygame.display.set_caption("3v3 Tactical Shooter")
+        self._screen = pygame.display.set_mode((W, W + HUD_H))
+        pygame.display.set_caption("Tactical Shooter")
         self._clock = pygame.time.Clock()
         self._font  = pygame.font.SysFont("monospace", 11, bold=True)
         self._font_big = pygame.font.SysFont("monospace", 16, bold=True)
@@ -411,13 +416,23 @@ class ShooterEnvironment(ParallelEnv):
             hp_col  = C_HP_OK if hp_frac > 0.5 else C_HP_RED
             pygame.draw.rect(surf, hp_col, (bx, by, int(bar_w * hp_frac), bar_h))
 
-        # — HUD: score / step —
+        # — HUD panel below the grid —
+        pygame.draw.rect(surf, C_HUD_BG, (0, W, W, HUD_H))
+
         red_hp  = sum(self._hp[a] for a in self.possible_agents if "red"  in a)
         blue_hp = sum(self._hp[a] for a in self.possible_agents if "blue" in a)
-        hud = self._font_big.render(
+        row1 = self._font_big.render(
             f"RED HP:{red_hp:2d}   STEP:{self.timestep:3d}   BLUE HP:{blue_hp:2d}",
-            True, (200, 200, 210))
-        surf.blit(hud, (W//2 - hud.get_width()//2, W - 20))
+            True, C_HUD_TEXT)
+        surf.blit(row1, (W//2 - row1.get_width()//2, W + 4))
+
+        s = self._render_stats
+        ep = max(s["episodes"], 1)
+        win_rate = s["red_wins"] / ep
+        row2 = self._font_big.render(
+            f"RED W:{s['red_wins']}  BLUE W:{s['blue_wins']}  EP:{s['episodes']}  WR:{win_rate:.0%}",
+            True, C_HUD_TEXT)
+        surf.blit(row2, (W//2 - row2.get_width()//2, W + 22))
 
         pygame.display.flip()
         self._clock.tick(self.fps)

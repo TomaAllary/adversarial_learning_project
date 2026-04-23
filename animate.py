@@ -228,7 +228,9 @@ def main():
     print(f"Episodes: {max_ep}")
     print("\nClose the Pygame window or press Ctrl+C to stop.\n")
 
-    ep          = 0
+    ep         = 0
+    red_wins   = 0
+    blue_wins  = 0
     all_rewards = []
 
     try:
@@ -237,16 +239,24 @@ def main():
             ep   += 1
             all_rewards.append(stats["red_reward"])
 
-            outcome = (
-                "WIN " if stats["red_reward"] > 15.0
-                else "LOSS" if stats["red_reward"] < -15.0
-                else "DRAW"
-            )
+            if stats["red_reward"] > 15.0:
+                red_wins  += 1
+                outcome = "WIN "
+            elif stats["red_reward"] < -15.0:
+                blue_wins += 1
+                outcome = "LOSS"
+            else:
+                outcome = "DRAW"
+
+            if hasattr(env, "set_render_stats"):
+                env.set_render_stats(red_wins, blue_wins, ep)
+
             print(
                 f"  ep {ep:4d}  [{outcome}]"
                 f"  steps={stats['game_steps']:3d}"
                 f"  red={stats['red_reward']:+7.2f}"
                 f"  blue={stats['blue_reward']:+7.2f}"
+                f"  WR={red_wins/ep:.0%}"
             )
 
     except (KeyboardInterrupt, SystemExit):
