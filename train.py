@@ -17,7 +17,7 @@ After training
 
 Run directory layout
 --------------------
-  runs/<algo>_<run_name>_<timestamp>/
+  runs/<algo>_<run_name>/   (suffixed _1, _2, … if the name is already taken)
     config.json            full reproducible config
     best_model.pt/.zip     checkpoint with highest eval reward
     final_model.pt/.zip    end-of-training snapshot
@@ -46,7 +46,6 @@ PPO only (via SB3 internal logger)
 import argparse
 import json
 import time
-from datetime import datetime
 from pathlib import Path
 
 import numpy as np
@@ -57,13 +56,19 @@ from pettingzoo_env.shooter_gym_env import ShooterGymEnv
 
 # ── shared helpers ─────────────────────────────────────────────────────────────
 
-def _make_run_name(algo: str, base: str | None) -> str:
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    return f"{algo}_{base}_{ts}" if base else f"{algo}_{ts}"
+def _make_run_name(algo: str, base: str | None, runs_dir: Path) -> str:
+    stem = f"{algo}_{base}" if base else algo
+    if not (runs_dir / stem).exists():
+        return stem
+    n = 1
+    while (runs_dir / f"{stem}_{n}").exists():
+        n += 1
+    return f"{stem}_{n}"
 
 
 def _setup_dirs(args) -> tuple[Path, Path]:
-    run_dir  = Path(args.runs_dir) / _make_run_name(args.algo, args.run_name)
+    runs_dir = Path(args.runs_dir)
+    run_dir  = runs_dir / _make_run_name(args.algo, args.run_name, runs_dir)
     ckpt_dir = run_dir / "checkpoints"
     run_dir.mkdir(parents=True, exist_ok=True)
     ckpt_dir.mkdir(exist_ok=True)
