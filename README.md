@@ -113,7 +113,7 @@ The agent controls Red; Blue is driven by an `opponent` policy. `step()` returns
 
 ## Algorithms
 
-### PPO (`pettingzoo_env/train_ppo.py`)
+### PPO (`train.py ppo`)
 
 **Proximal Policy Optimization** via [Stable Baselines 3](https://stable-baselines3.readthedocs.io/). Red is trained as a single agent against a fixed opponent (scripted BFS or random) using `ShooterGymEnv` with `self_play=False`.
 
@@ -195,13 +195,12 @@ A deterministic rule-based opponent used as a training baseline for PPO. It uses
 adversarial_learning_project/
 │
 ├── new_rnad.py                      # R-NaD algorithm (SB3-compatible)
-├── train_rnad.py                    # R-NaD training script
+├── train.py                         # Unified training script (PPO + R-NaD)
 ├── animate_rnad.py                  # Visualise a trained R-NaD model
 │
 ├── pettingzoo_env/
 │   ├── shooter_env.py               # Core PettingZoo environment
 │   ├── shooter_gym_env.py           # Gymnasium wrapper (SB3 PPO + R-NaD)
-│   ├── train_ppo.py             # PPO training script (Stable Baselines 3)
 │   ├── scripted_shooter_agent.py    # Rule-based BFS opponent
 │   ├── utils.py                     # BFS pathfinder, map generator, helpers
 │   └── prisoner_env.py              # Separate pursuit-evasion environment
@@ -249,19 +248,22 @@ pip install -r requirement.txt
 
 ## Training
 
-### R-NaD self-play — `train_rnad.py`
-
-Trains a single shared policy to Nash equilibrium via self-play. Both Red and Blue are driven by the same network; each is evaluated from its own perspective.
+Both algorithms are trained through a single unified script — `train.py` — which shares the evaluation loop, TensorBoard logging, checkpointing, and run-directory layout. Choose the algorithm with the first positional argument.
 
 ```bash
-# Minimal — auto-named run, 500k actor steps
-python train_rnad.py
+tensorboard --logdir runs/   # monitor any run
+```
 
-# Named run
-python train_rnad.py --run-name experiment_1
+### R-NaD self-play — `python train.py rnad`
 
-# Full example
-python train_rnad.py \
+Trains a single shared policy to Nash equilibrium via self-play. Both Red and Blue are driven by the same network.
+
+```bash
+# Minimal — 500k actor steps
+python train.py rnad
+
+# Named run on GPU
+python train.py rnad \
     --run-name experiment_1 \
     --total-steps 2_000_000 \
     --batch-size 256 \
@@ -269,119 +271,119 @@ python train_rnad.py \
     --device cuda
 ```
 
-Outputs are written to `runs/<run-name>_<timestamp>/`:
+#### All arguments — `rnad`
 
-```
-runs/experiment_1_20260101_120000/
-  config.json          # full reproducible config
-  best_model.pt        # checkpoint with highest eval reward
-  final_model.pt       # end-of-training snapshot
-  checkpoints/
-    model_step_0002000.pt
-    model_step_0004000.pt
-    ...
-  events.out.tfevents.*   # TensorBoard logs
-```
+**Common**
 
-Launch TensorBoard:
+| Argument           | Default   | Description                              |
+| ------------------ | --------- | ---------------------------------------- |
+| `--run-name`     | auto      | Base name; `rnad_` + timestamp appended  |
+| `--runs-dir`     | `runs`  | Root directory for outputs               |
+| `--total-steps`  | 500 000   | Stop after this many actor steps         |
+| `--eval-episodes`| 20        | Episodes per evaluation round            |
+| `--hidden-layers`| `256 256` | MLP hidden layer widths                 |
+| `--learning-rate`| 5e-5      | Adam learning rate                       |
+| `--seed`         | 42        | RNG seed                                 |
+| `--device`       | `cpu`   | Torch device (`cpu`, `cuda`, `cuda:0`, …)|
 
-```bash
-tensorboard --logdir runs/
-```
+**R-NaD specific**
 
-#### All arguments
-
-| Argument                       | Default     | Description                                       |
-| ------------------------------ | ----------- | ------------------------------------------------- |
-| `--run-name`                 | auto        | Base name; timestamp always appended              |
-| `--runs-dir`                 | `runs`    | Root directory for outputs                        |
-| `--total-steps`              | 500 000     | Stop after this many actor steps                  |
-| `--log-interval`             | 50          | Log training scalars every N learner steps        |
-| `--eval-interval`            | 500         | Evaluate vs random opponent every N learner steps |
-| `--eval-episodes`            | 20          | Episodes per evaluation round                     |
-| `--checkpoint-interval`      | 2 000       | Save a checkpoint every N learner steps           |
-| `--hidden-layers`            | `256 256` | MLP hidden layer widths                           |
-| `--learning-rate`            | 5e-5        | Adam learning rate                                |
-| `--clip-gradient`            | 10 000      | Global gradient norm clip                         |
-| `--adam-b1`                  | 0.0         | Adam β₁                                         |
-| `--adam-b2`                  | 0.999       | Adam β₂                                         |
-| `--adam-eps`                 | 1e-7        | Adam ε                                           |
-| `--batch-size`               | 256         | Parallel environment instances                    |
-| `--trajectory-max`           | 200         | Steps per trajectory                              |
-| `--target-network-avg`       | 0.001       | EMA rate τ for target network                    |
-| `--eta-reward-transform`     | 0.2         | Entropy regularisation strength η                |
-| `--c-vtrace`                 | 1.0         | V-trace importance weight clip                    |
-| `--nerd-beta`                | 2.0         | NeuRD gradient clip threshold                     |
-| `--nerd-clip`                | 10 000      | NeuRD logit clip                                  |
+| Argument                       | Default   | Description                                       |
+| ------------------------------ | --------- | ------------------------------------------------- |
+| `--log-interval`             | 50        | Log training scalars every N learner steps        |
+| `--eval-interval`            | 500       | Evaluate vs random every N learner steps          |
+| `--checkpoint-interval`      | 2 000     | Save checkpoint every N learner steps             |
+| `--batch-size`               | 256       | Parallel environment instances                    |
+| `--trajectory-max`           | 200       | Steps per trajectory                              |
+| `--clip-gradient`            | 10 000    | Global gradient norm clip                         |
+| `--adam-b1`                  | 0.0       | Adam β₁                                          |
+| `--adam-b2`                  | 0.999     | Adam β₂                                          |
+| `--adam-eps`                 | 1e-7      | Adam ε                                            |
+| `--target-network-avg`       | 0.001     | EMA rate τ for target network                    |
+| `--eta-reward-transform`     | 0.2       | Entropy regularisation strength η                |
+| `--c-vtrace`                 | 1.0       | V-trace importance weight clip                    |
+| `--nerd-beta`                | 2.0       | NeuRD gradient clip threshold                     |
+| `--nerd-clip`                | 10 000    | NeuRD logit clip                                  |
 | `--entropy-schedule-size`    | `20000`   | Steps per entropy phase                           |
 | `--entropy-schedule-repeats` | `1`       | Repetitions of each phase                         |
-| `--seed`                     | 42          | RNG seed                                          |
-| `--device`                   | `cpu`     | Torch device (`cpu`, `cuda`, `cuda:0`, …)  |
-
-**TensorBoard scalars logged:**
-
-| Tag                   | Description                                |
-| --------------------- | ------------------------------------------ |
-| `train/loss`        | Combined V + NeuRD loss                    |
-| `train/alpha`       | Current entropy schedule α                |
-| `train/actor_steps` | Cumulative environment steps               |
-| `train/fps`         | Actor steps per second                     |
-| `eval/mean_reward`  | Mean episode reward (Red vs random Blue)   |
-| `eval/std_reward`   | Std of episode rewards                     |
-| `eval/win_rate`     | Fraction of evaluation episodes won by Red |
 
 ---
 
-### PPO vs scripted opponent — `pettingzoo_env/train_ppo.py`
+### PPO vs scripted opponent — `python train.py ppo`
 
 Trains Red with SB3 PPO while Blue uses the scripted BFS agent (default) or a random policy.
 
 ```bash
-# Minimal — 1 M steps, 8 envs, scripted opponent
-python -m pettingzoo_env.train_shooter
+# Minimal — 500k steps, 8 envs, scripted opponent
+python train.py ppo
 
 # Longer run on GPU with a random opponent
-python -m pettingzoo_env.train_shooter --total-timesteps 5_000_000 --n-envs 16 --opponent random --device cuda
+python train.py ppo \
+    --total-steps 5_000_000 \
+    --n-envs 16 \
+    --opponent random \
+    --device cuda
 
 # Resume from a saved checkpoint
-python -m pettingzoo_env.train_shooter --load runs/ppo_20260101_120000/best_model.zip
+python train.py ppo --load runs/ppo_experiment_1_20260101_120000/best_model.zip
 ```
 
-Outputs are written to `runs/ppo_<timestamp>/`:
+#### All arguments — `ppo`
+
+**Common** (same as R-NaD table above, with different defaults)
+
+| Argument           | Default   | Description                              |
+| ------------------ | --------- | ---------------------------------------- |
+| `--learning-rate`| 3e-4      | PPO learning rate                        |
+| `--device`       | `auto`  | Torch device                             |
+
+**PPO specific**
+
+| Argument                  | Default      | Description                                   |
+| ------------------------- | ------------ | --------------------------------------------- |
+| `--n-envs`              | 8            | Parallel training environments                |
+| `--opponent`            | `scripted` | Blue policy: `scripted` or `random`         |
+| `--load`                | —            | Path to a `.zip` checkpoint to resume from   |
+| `--eval-interval`       | 10 000       | Evaluate vs random every N actor steps        |
+| `--checkpoint-interval` | 50 000       | Save checkpoint every N actor steps           |
+
+---
+
+### Run directory layout (both algos)
 
 ```
-runs/ppo_20260101_120000/
-  best_model.zip           # checkpoint with highest eval mean reward
-  final_model.zip          # end-of-training snapshot
-  evaluations.npz          # EvalCallback episode rewards log
+runs/rnad_experiment_1_20260101_120000/
+  config.json            # full reproducible config
+  best_model.pt/.zip     # checkpoint with highest eval reward
+  final_model.pt/.zip    # end-of-training snapshot
   checkpoints/
-    ppo_shooter_50000_steps.zip
-    ppo_shooter_100000_steps.zip
+    model_step_0002000.pt   # R-NaD
+    ppo_step_00050000.zip   # PPO
     ...
-  ppo_<timestamp>/         # TensorBoard event files
+  events.out.tfevents.*  # TensorBoard logs
 ```
 
-Launch TensorBoard:
+### TensorBoard scalars (both algos)
 
-```bash
-tensorboard --logdir runs/
-```
+| Tag                   | Description                                |
+| --------------------- | ------------------------------------------ |
+| `eval/mean_reward`  | Mean episode reward (Red vs random Blue)   |
+| `eval/std_reward`   | Std of episode rewards                     |
+| `eval/win_rate`     | Fraction of evaluation episodes won by Red |
+| `train/fps`         | Actor steps per second                     |
 
-#### All arguments
+**R-NaD only**
 
-| Argument               | Default      | Description                                       |
-| ---------------------- | ------------ | ------------------------------------------------- |
-| `--total-timesteps`  | 1 000 000    | Training budget in env steps                      |
-| `--n-envs`           | 8            | Parallel training environments                    |
-| `--opponent`         | `scripted` | Blue policy: `scripted` or `random`             |
-| `--run-name`         | `ppo`      | Base name; timestamp is always appended           |
-| `--runs-dir`         | `runs`     | Root directory for outputs                        |
-| `--load`             | —           | Path to a `.zip` checkpoint to resume from       |
-| `--eval-freq`        | 10 000       | Evaluate every N total env steps                  |
-| `--eval-episodes`    | 20           | Episodes per evaluation round                     |
-| `--checkpoint-freq`  | 50 000       | Save a checkpoint every N total env steps         |
-| `--device`           | `auto`     | Torch device: `auto`, `cpu`, `cuda`             |
-| `--seed`             | 42           | RNG seed                                          |
+| Tag                   | Description                                |
+| --------------------- | ------------------------------------------ |
+| `train/loss`        | Combined V + NeuRD loss                    |
+| `train/mean_reward` | Mean batch trajectory reward               |
+| `train/alpha`       | Current entropy schedule α                |
+| `train/actor_steps` | Cumulative environment steps               |
+
+**PPO only** (via SB3 internal logger)
+
+`train/policy_gradient_loss`, `train/value_loss`, `train/entropy_loss`, `train/approx_kl`, `train/clip_fraction`, …
 
 To load a trained model for inference:
 
