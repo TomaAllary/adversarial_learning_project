@@ -229,18 +229,7 @@ conda activate adversarial
 
 ### 2. Install PyTorch with GPU support
 
-First check your CUDA version:
-
 ```bash
-nvidia-smi   # look for "CUDA Version: X.Y" in the top-right corner
-```
-
-Then install PyTorch from the [official selector](https://pytorch.org/get-started/locally/). Common commands:
-
-```bash
-# CUDA 12.1
-conda install pytorch torchvision torchaudio pytorch-cuda=12.1 -c pytorch -c nvidia
-
 # CUDA 11.8
 conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia
 
