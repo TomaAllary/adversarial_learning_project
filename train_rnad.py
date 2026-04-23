@@ -252,6 +252,7 @@ def main():
                 fps     = model.actor_steps / max(elapsed, 1e-8)
 
                 writer.add_scalar("train/loss",         logs["loss"],        ls)
+                writer.add_scalar("train/mean_reward",  logs["mean_reward"], ls)
                 writer.add_scalar("train/alpha",        alpha,               ls)
                 writer.add_scalar("train/actor_steps",  model.actor_steps,   ls)
                 writer.add_scalar("train/fps",          fps,                 ls)
@@ -261,6 +262,7 @@ def main():
                 progress = model.num_timesteps / args.total_steps * 100
                 print(
                     f"[{progress:5.1f}%] step={ls:>6d}  loss={logs['loss']:.4f}"
+                    f"  rew={logs['mean_reward']:+.3f}"
                     f"  a={alpha:.3f}  actor={model.actor_steps:,}  fps={fps:.0f}"
                 )
 

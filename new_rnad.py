@@ -640,7 +640,9 @@ class RNaD:
         alpha, update_target_net = self._entropy_schedule(self.learner_steps)
         loss_val = self._update_parameters(timestep, alpha, update_target_net)
         self.learner_steps += 1
-        return {"loss": loss_val, "actor_steps": self.actor_steps, "learner_steps": self.learner_steps}
+        # Sum rewards over time for each env, average across the batch (player 0 = Red)
+        mean_reward = float(timestep["rewards"][:, :, 0].sum(axis=0).mean())
+        return {"loss": loss_val, "mean_reward": mean_reward, "actor_steps": self.actor_steps, "learner_steps": self.learner_steps}
 
     # ------------------------------------------------------------------
     # Parameter update
