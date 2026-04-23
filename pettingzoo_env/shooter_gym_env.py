@@ -246,7 +246,8 @@ class ShooterGymEnv(gymnasium.Env):
             return lambda _obs: int(rng.integers(_N_ACTIONS))
         if opponent == "scripted":
             from pettingzoo_env.scripted_shooter_agent import ScriptedShooterAgent
-            agent = ScriptedShooterAgent()
+            from pettingzoo_env.shooter_env import N_AGENTS
+            agent = ScriptedShooterAgent(N_AGENTS * 2)
             return lambda obs: agent.act(obs, self._env)
         raise ValueError(
             f"Unknown opponent '{opponent}'. "
