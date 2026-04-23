@@ -12,7 +12,8 @@ Quickstart
 After training
 --------------
   tensorboard --logdir runs/
-  python animate_rnad.py --run runs/<run_name>   # R-NaD only
+  python animate.py rnad --run runs/<run_name>
+  python animate.py ppo  --run runs/<run_name>
 
 Run directory layout
 --------------------
