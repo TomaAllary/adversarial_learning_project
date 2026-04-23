@@ -34,7 +34,7 @@ from pathlib import Path
 
 import numpy as np
 
-from pettingzoo_env.shooter_gym_env import ShooterGymEnv
+from environments.shooter_gym_env import ShooterGymEnv
 
 
 # ── argument parsing ──────────────────────────────────────────────────────────
@@ -93,7 +93,7 @@ def parse_args():
 # ── model loading ─────────────────────────────────────────────────────────────
 
 def load_rnad(args):
-    from new_rnad import RNaD
+    from rnad import RNaD
 
     if args.run:
         run_dir    = Path(args.run)

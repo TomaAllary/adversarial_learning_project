@@ -51,7 +51,7 @@ from pathlib import Path
 import numpy as np
 from torch.utils.tensorboard import SummaryWriter
 
-from pettingzoo_env.shooter_gym_env import ShooterGymEnv
+from environments.shooter_gym_env import ShooterGymEnv
 
 
 # ── shared helpers ─────────────────────────────────────────────────────────────
@@ -131,7 +131,7 @@ def _log_eval(writer: SummaryWriter, stats: dict, step: int, prefix: str = "eval
 # ── R-NaD ─────────────────────────────────────────────────────────────────────
 
 def train_rnad(args):
-    from new_rnad import RNaD, RNaDConfig, AdamConfig, NerdConfig
+    from rnad import RNaD, RNaDConfig, AdamConfig, NerdConfig
 
     run_dir, ckpt_dir = _setup_dirs(args)
 

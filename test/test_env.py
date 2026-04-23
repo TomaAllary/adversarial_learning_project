@@ -1,4 +1,4 @@
-from pettingzoo_env import CustomEnvironment
+from environments import CustomEnvironment
 
 from pettingzoo.test import parallel_api_test, api_test
 

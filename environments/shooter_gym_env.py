@@ -38,8 +38,8 @@ self_play=False  (for PPO / SB3)
 Usage examples
 --------------
 # R-NaD self-play
-from pettingzoo_env.shooter_gym_env import ShooterGymEnv
-from new_rnad import RNaD, RNaDConfig
+from environments.shooter_gym_env import ShooterGymEnv
+from rnad import RNaD, RNaDConfig
 
 env_fn = lambda: ShooterGymEnv(self_play=True)
 model  = RNaD(env_fn=env_fn, config=RNaDConfig(num_players=2))
@@ -59,7 +59,7 @@ import gymnasium
 from gymnasium.spaces import Box, Discrete
 from typing import Callable, Optional, Union
 
-from pettingzoo_env.shooter_env import ShooterEnvironment, OBS_DIM
+from environments.shooter_env import ShooterEnvironment, OBS_DIM
 
 # Number of discrete actions (stay, N, S, W, E, rot-L, rot-R)
 _N_ACTIONS = 7
@@ -253,8 +253,8 @@ class ShooterGymEnv(gymnasium.Env):
             rng = np.random.default_rng()
             return lambda _obs: int(rng.integers(_N_ACTIONS))
         if opponent == "scripted":
-            from pettingzoo_env.scripted_shooter_agent import ScriptedShooterAgent
-            from pettingzoo_env.shooter_env import N_AGENTS
+            from environments.scripted_shooter_agent import ScriptedShooterAgent
+            from environments.shooter_env import N_AGENTS
             agent = ScriptedShooterAgent(N_AGENTS * 2)
             return lambda obs: agent.get_action_and_value(obs)
         raise ValueError(

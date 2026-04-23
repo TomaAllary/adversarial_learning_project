@@ -4,8 +4,8 @@ import torch.nn as nn
 import torch.optim as optim
 import math
 from torch.distributions.categorical import Categorical
-from pettingzoo_env.shooter_env import GRID
-from pettingzoo_env.utils import bfs_path, time_average
+from environments.shooter_env import GRID
+from environments.utils import bfs_path, time_average
 
 DEG_EPS = 2
 
@@ -48,7 +48,7 @@ class ScriptedShooterAgent(nn.Module):
         return self.critic(self.network(x))
     
     def get_action_and_value(self, x, action=None):
-        from pettingzoo_env.shooter_env import MAP
+        from environments.shooter_env import MAP
         obs         = np.asarray(x).flatten()
         N_TOTAL     = self._num_agents          # total agents (both teams)
         agent_half  = N_TOTAL >> 1              # agents per team

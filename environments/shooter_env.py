@@ -47,7 +47,7 @@ import numpy as np
 import pygame
 from gymnasium.spaces import Box, Discrete
 from pettingzoo import ParallelEnv
-from pettingzoo_env.utils import normalize
+from environments.utils import normalize
 
 
 # ── constants ─────────────────────────────────────────────────────────────────
