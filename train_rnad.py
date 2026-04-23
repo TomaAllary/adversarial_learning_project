@@ -225,6 +225,7 @@ def main():
     best_reward     = float("-inf")
     best_model_path = run_dir / "best_model.pt"
     final_path      = run_dir / "final_model.pt"
+    last_eval_stats = None
     t0              = time.perf_counter()
 
     print(f"\n{'='*60}")
@@ -258,6 +259,9 @@ def main():
                 writer.add_scalar("train/fps",          fps,                 ls)
                 if updated:
                     writer.add_scalar("train/target_net_updated", 1.0, ls)
+                if last_eval_stats is not None:
+                    writer.add_scalar("eval/mean_reward", last_eval_stats["mean_reward"], ls)
+                    writer.add_scalar("eval/win_rate",    last_eval_stats["win_rate"],    ls)
 
                 progress = model.num_timesteps / args.total_steps * 100
                 print(
@@ -268,7 +272,8 @@ def main():
 
             # ── periodic evaluation ────────────────────────────────────────
             if ls % args.eval_interval == 0:
-                stats = evaluate(model, args.eval_episodes)
+                last_eval_stats = evaluate(model, args.eval_episodes)
+                stats = last_eval_stats
 
                 writer.add_scalar("eval/mean_reward", stats["mean_reward"], ls)
                 writer.add_scalar("eval/std_reward",  stats["std_reward"],  ls)
