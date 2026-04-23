@@ -25,10 +25,13 @@ Run directory layout
 
 TensorBoard tags (both algos)
 ------------------------------
-  eval/mean_reward    mean episode reward, Red vs random Blue
-  eval/std_reward     std of episode rewards
-  eval/win_rate       fraction of eval episodes won by Red
-  train/fps           actor steps per second
+  eval_random/mean_reward     mean episode reward, Red vs random Blue
+  eval_random/std_reward      std of episode rewards
+  eval_random/win_rate        fraction of eval episodes won by Red
+  eval_scripted/mean_reward   mean episode reward, Red vs scripted Blue
+  eval_scripted/std_reward    std of episode rewards
+  eval_scripted/win_rate      fraction of eval episodes won by Red
+  train/fps                   actor steps per second
 
 R-NaD only
   train/loss          combined V + NeuRD loss (per learner step)
@@ -77,14 +80,14 @@ def _print_header(run_dir: Path, args):
     print(f"TensorBoard: tensorboard --logdir {args.runs_dir}\n")
 
 
-def evaluate(model, num_episodes: int, *, use_legal_mask: bool) -> dict:
-    """Run num_episodes games: Red = trained model vs Blue = random.
+def evaluate(model, num_episodes: int, *, use_legal_mask: bool, opponent: str = "random") -> dict:
+    """Run num_episodes games: Red = trained model vs Blue = opponent.
 
     Returns mean/std episode reward and win rate.
     A win requires episode reward > 15 (kill bonus must clear the
     step-penalty floor of -10 for a full 200-step episode).
     """
-    env = ShooterGymEnv(self_play=False, opponent="random")
+    env = ShooterGymEnv(self_play=False, opponent=opponent)
     rewards, wins = [], 0
 
     for _ in range(num_episodes):
@@ -112,10 +115,10 @@ def evaluate(model, num_episodes: int, *, use_legal_mask: bool) -> dict:
     }
 
 
-def _log_eval(writer: SummaryWriter, stats: dict, step: int):
-    writer.add_scalar("eval/mean_reward", stats["mean_reward"], step)
-    writer.add_scalar("eval/std_reward",  stats["std_reward"],  step)
-    writer.add_scalar("eval/win_rate",    stats["win_rate"],    step)
+def _log_eval(writer: SummaryWriter, stats: dict, step: int, prefix: str = "eval"):
+    writer.add_scalar(f"{prefix}/mean_reward", stats["mean_reward"], step)
+    writer.add_scalar(f"{prefix}/std_reward",  stats["std_reward"],  step)
+    writer.add_scalar(f"{prefix}/win_rate",    stats["win_rate"],    step)
     writer.flush()
 
 
@@ -191,12 +194,19 @@ def train_rnad(args):
 
             # ── periodic evaluation ────────────────────────────────────────
             if ls % args.eval_interval == 0:
-                stats = evaluate(model, args.eval_episodes, use_legal_mask=True)
-                _log_eval(writer, stats, ls)
+                stats_random   = evaluate(model, args.eval_episodes, use_legal_mask=True, opponent="random")
+                stats_scripted = evaluate(model, args.eval_episodes, use_legal_mask=True, opponent="scripted")
+                _log_eval(writer, stats_random,   ls, prefix="eval_random")
+                _log_eval(writer, stats_scripted, ls, prefix="eval_scripted")
                 print(
-                    f"  [eval]  mean_reward={stats['mean_reward']:+.3f}"
-                    f"  win_rate={stats['win_rate']:.0%}"
+                    f"  [eval vs random  ]  mean_reward={stats_random['mean_reward']:+.3f}"
+                    f"  win_rate={stats_random['win_rate']:.0%}"
                 )
+                print(
+                    f"  [eval vs scripted]  mean_reward={stats_scripted['mean_reward']:+.3f}"
+                    f"  win_rate={stats_scripted['win_rate']:.0%}"
+                )
+                stats = stats_random  # use random stats for best-model tracking
 
                 if stats["mean_reward"] > best_reward:
                     best_reward = stats["mean_reward"]
@@ -287,21 +297,29 @@ def train_ppo(args):
 
             if n - self._last_eval >= args.eval_interval:
                 self._last_eval = n
-                stats   = evaluate(self.model, args.eval_episodes, use_legal_mask=False)
+                stats_random   = evaluate(self.model, args.eval_episodes, use_legal_mask=False, opponent="random")
+                stats_scripted = evaluate(self.model, args.eval_episodes, use_legal_mask=False, opponent="scripted")
                 elapsed = time.perf_counter() - t0
                 fps     = n / max(elapsed, 1e-8)
 
-                _log_eval(writer, stats, n)
+                _log_eval(writer, stats_random,   n, prefix="eval_random")
+                _log_eval(writer, stats_scripted, n, prefix="eval_scripted")
                 writer.add_scalar("train/fps", fps, n)
 
                 progress = n / args.total_steps * 100
                 print(
-                    f"[{progress:5.1f}%] steps={n:>8,}"
-                    f"  mean_reward={stats['mean_reward']:+.3f}"
-                    f"  win_rate={stats['win_rate']:.0%}"
-                    f"  fps={fps:.0f}"
+                    f"[{progress:5.1f}%] steps={n:>8,}  fps={fps:.0f}"
+                )
+                print(
+                    f"  [eval vs random  ]  mean_reward={stats_random['mean_reward']:+.3f}"
+                    f"  win_rate={stats_random['win_rate']:.0%}"
+                )
+                print(
+                    f"  [eval vs scripted]  mean_reward={stats_scripted['mean_reward']:+.3f}"
+                    f"  win_rate={stats_scripted['win_rate']:.0%}"
                 )
 
+                stats = stats_random  # use random stats for best-model tracking
                 if stats["mean_reward"] > self.best_reward:
                     self.best_reward = stats["mean_reward"]
                     self.model.save(str(run_dir / "best_model"))
