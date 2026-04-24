@@ -2,36 +2,40 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Shooter Environment",
+            "name": "Train PPO",
             "type": "debugpy",
             "request": "launch",
-            "program": "./pettingzoo_env/shooter_env.py",
+            "program": "./train.py",
+            "args": ["ppo", "--device", "cpu"],
             "console": "integratedTerminal",
             "justMyCode": true
         },
         {
-            "name": "Train Agent (Prisoner Guard)",
+            "name": "Train RNaD",
             "type": "debugpy",
             "request": "launch",
-            "module": "pettingzoo_env.train",
-            "console": "integratedTerminal",
-            "justMyCode": true
-        },
-                {
-            "name": "Train Agent (Shooter)",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "pettingzoo_env.train_shooter",
+            "program": "./train.py",
+            "args": ["rnad", "--total-steps", "2_000_000", "--device", "cuda"],
             "console": "integratedTerminal",
             "justMyCode": true
         },
         {
-            "name": "Test Env",
+            "name": "Animate PPO",
             "type": "debugpy",
             "request": "launch",
-            "module": "test.test_env",
+            "program": "./animate.py",
+            "args": ["ppo", "--run", "runs/ppo_2", "--mode", "vs_scripted", "--fps", "3", "--episodes", "5"],
             "console": "integratedTerminal",
             "justMyCode": true
-        }
+        },
+        {
+            "name": "Animate RNaD",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "./animate.py",
+            "args": ["rnad", "--run", "runs/rnad_3", "--mode", "vs_scripted", "--fps", "3", "--episodes", "5"],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
     ]
 }
