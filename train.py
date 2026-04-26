@@ -170,7 +170,7 @@ def train_rnad(args):
     print(f"Config saved: {config_path}\n")
 
     try:
-        while model.num_timesteps < args.total_steps:
+        while model.learner_steps < args.total_steps:
             prev_actor = model.actor_steps
             logs       = model.step()
             model.num_timesteps += model.actor_steps - prev_actor

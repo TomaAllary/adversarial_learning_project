@@ -33,9 +33,18 @@
             "type": "debugpy",
             "request": "launch",
             "program": "./animate.py",
-            "args": ["rnad", "--run", "runs/rnad_3", "--mode", "vs_scripted", "--fps", "3", "--episodes", "5"],
+            "args": ["rnad", "--run", "runs/rnad_5", "--mode", "vs_scripted", "--fps", "3", "--episodes", "5"],
             "console": "integratedTerminal",
             "justMyCode": true
         },
+            {
+                "name": "Train RNaD + Exploiter",
+                "type": "debugpy",
+                "request": "launch",
+                "program": "./league_training.py",
+                // "args": ["--total-main-steps", "50_000", "--exploiter-interval", "10000", "--exploiter-max-steps", "5000"],
+                "console": "integratedTerminal",
+                "justMyCode": true
+            }
     ]
 }
