@@ -6,7 +6,7 @@
             "type": "debugpy",
             "request": "launch",
             "program": "./train.py",
-            "args": ["ppo", "--device", "cpu"],
+            "args": ["ppo", "--device", "cpu", "--total-steps", "50_000_000", "--n-envs", "8", "--opponent", "scripted", "--device", "cuda"],
             "console": "integratedTerminal",
             "justMyCode": true
         },
@@ -37,14 +37,30 @@
             "console": "integratedTerminal",
             "justMyCode": true
         },
-            {
-                "name": "Train RNaD + Exploiter",
-                "type": "debugpy",
-                "request": "launch",
-                "program": "./league_training.py",
-                // "args": ["--total-main-steps", "50_000", "--exploiter-interval", "10000", "--exploiter-max-steps", "5000"],
-                "console": "integratedTerminal",
-                "justMyCode": true
-            }
+        {
+            "name": "Train RNaD + Exploiter",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "./league_training.py",
+            "args": [
+                "--total-main-steps", "200_000_000", 
+                "--exploiter-interval", "1000", 
+                "--exploiter-max-steps", "1_000_000", 
+                "--exploiter-weight", "0.3", 
+                "--rnad-weight", "0.7", 
+                "--run-dir", "runs/league_30pc_exploit",
+                "--device", "cuda"],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Train Exploiter",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "./minimax_exploiter.py",
+            "args": ["exploiter", "--main-checkpoint", "runs/rnad_5/checkpoints/model_step_0004000.pt", "--total-exploiter-steps", "800_000"],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
     ]
 }

@@ -81,6 +81,7 @@ from environments.shooter_gym_env import ShooterGymEnv
 from environments.shooter_env import OBS_DIM
 from minimax_exploiter import (
     MinimaxShooterGymEnv,
+    PPOMainAgent,
     evaluate_vs_main,
     WIN_REWARD_THRESHOLD,
 )
@@ -111,12 +112,18 @@ class LeagueConfig:
     exploiter_weight:       float = 0.3        # relative weight for exploiter slot
     snapshot_interval:      int   = 50_000     # actor steps between RNaD snapshots
 
-    # ── Exploiter ────────────────────────────────────────────────────────────
+    # ── Exploiter (PPO) ───────────────────────────────────────────────────────
     exploiter_interval:     int   = 100_000    # actor steps between exploiter launches
     exploiter_max_steps:    int   = 200_000    # hard budget per exploiter run
     exploiter_win_target:   float = 1.0        # stop early if win-rate reaches this
-    exploiter_batch_size:   int   = 128
-    exploiter_traj_max:     int   = 200
+    # PPO hyperparameters
+    exploiter_n_envs:       int   = 8
+    exploiter_n_steps:      int   = 2048
+    exploiter_batch_size:   int   = 64         # PPO mini-batch size
+    exploiter_n_epochs:     int   = 10
+    exploiter_lr:           float = 3e-4
+    exploiter_clip_range:   float = 0.2
+    exploiter_ent_coef:     float = 0.01
 
     # ── Minimax reward ────────────────────────────────────────────────────────
     alpha:   float = 0.05
@@ -202,7 +209,9 @@ class PopulationManager:
         self._device          = device
 
         self._rnad_snapshots:   Deque[Dict]        = deque(maxlen=population_size)
-        self._exploiter_sd:     Optional[Dict]     = None   # latest exploiter state_dict
+        # PPO exploiter: stored as a loaded PPOMainAgent (None until first gen done)
+        self._exploiter_agent: Optional[PPOMainAgent] = None
+        self._exploiter_fn:    Optional[Callable]     = None   # cached callable
 
     # ── public API ────────────────────────────────────────────────────────────
 
@@ -210,60 +219,80 @@ class PopulationManager:
         """Push a new RNaD snapshot (CPU state dict) into the rolling window."""
         self._rnad_snapshots.append(_state_dict_cpu(net))
 
-    def set_exploiter(self, state_dict: Dict) -> None:
-        """Hot-swap the exploiter slot with a freshly trained network."""
-        self._exploiter_sd = {k: v.cpu() for k, v in state_dict.items()}
+    def set_exploiter(self, zip_path: str) -> None:
+        """Hot-swap the exploiter slot with a freshly trained PPO model.
+
+        ``zip_path`` is the path to the ``.zip`` file saved by SB3.
+        The model is loaded immediately and a fresh opponent callable is built.
+        """
+        self._exploiter_agent = PPOMainAgent.from_checkpoint(zip_path,
+                                                              device=self._device)
+        # Build the callable once; reused until the next set_exploiter call
+        agent = self._exploiter_agent
+        self._exploiter_fn = lambda obs: agent.get_action(obs)
 
     def sample_opponents(self, n: int) -> List[Callable]:
         """
         Return a list of n opponent callables sampled from the population.
         Falls back to a random opponent when the population is empty.
         """
-        entries, weights = self._build_distribution()
-        if not entries:
+        # ── Build RNaD entries ────────────────────────────────────────────────
+        rnad_entries: List[Dict]  = list(self._rnad_snapshots)
+        rnad_weights: List[float] = []
+        if rnad_entries:
+            w_per = self._rnad_w / len(rnad_entries)
+            rnad_weights = [w_per] * len(rnad_entries)
+
+        has_expl = self._exploiter_fn is not None
+        total_w  = sum(rnad_weights) + (self._exploiter_w if has_expl else 0.0)
+
+        if total_w == 0.0:
             rng = np.random.default_rng()
             return [lambda _obs, _r=rng: int(_r.integers(N_ACTIONS))] * n
 
-        weights_arr = np.array(weights, dtype=np.float64)
-        weights_arr /= weights_arr.sum()
+        # Normalise
+        norm_rnad = [w / total_w for w in rnad_weights]
+        norm_expl = (self._exploiter_w / total_w) if has_expl else 0.0
 
-        chosen = np.random.choice(len(entries), size=n, p=weights_arr)
-        # Build opponent fns lazily — one per unique index to avoid redundant copies
-        cache: Dict[int, Callable] = {}
-        result = []
+        # Sample indices: 0 … len(rnad)-1 are RNaD; index len(rnad) is exploiter
+        all_weights = norm_rnad + ([norm_expl] if has_expl else [])
+        chosen = np.random.choice(len(all_weights), size=n,
+                                  p=np.array(all_weights, dtype=np.float64))
+
+        # Build RNaD opponent callables lazily (one copy per unique snapshot index)
+        rnad_cache: Dict[int, Callable] = {}
+        result: List[Callable] = []
+        expl_idx = len(rnad_entries)   # index that maps to the exploiter slot
+
         for idx in chosen:
-            if idx not in cache:
-                sd = entries[idx]
-                net = _load_net(sd, self._hidden_layers, self._device)
-                cache[idx] = _net_to_opponent_fn(net, self._device)
-            result.append(cache[idx])
+            if idx == expl_idx:
+                result.append(self._exploiter_fn)
+            else:
+                if idx not in rnad_cache:
+                    net = _load_net(rnad_entries[idx], self._hidden_layers,
+                                   self._device)
+                    rnad_cache[idx] = _net_to_opponent_fn(net, self._device)
+                result.append(rnad_cache[idx])
+
+        # Accumulate counts; print ratio every 10 000 episodes
+        n_expl = int(np.sum(chosen == expl_idx))
+        self._sample_count      = getattr(self, "_sample_count",      0) + n
+        self._sample_expl_total = getattr(self, "_sample_expl_total", 0) + n_expl
+        if self._sample_count % 100 < n:
+            total = self._sample_count
+            ratio = self._sample_expl_total / total if total else 0.0
+            print(
+                f"[population] {total:,} episodes sampled — "
+                f"exploiter: {ratio:.1%}  rnad: {1-ratio:.1%}"
+            )
+
         return result
 
     def num_rnad_snapshots(self) -> int:
         return len(self._rnad_snapshots)
 
     def has_exploiter(self) -> bool:
-        return self._exploiter_sd is not None
-
-    # ── internals ─────────────────────────────────────────────────────────────
-
-    def _build_distribution(self) -> Tuple[List[Dict], List[float]]:
-        """Return (list_of_state_dicts, list_of_weights) ready for np.random.choice."""
-        entries: List[Dict]  = []
-        weights: List[float] = []
-
-        n_rnad = len(self._rnad_snapshots)
-        if n_rnad > 0:
-            w_per_rnad = self._rnad_w / n_rnad
-            for sd in self._rnad_snapshots:
-                entries.append(sd)
-                weights.append(w_per_rnad)
-
-        if self._exploiter_sd is not None:
-            entries.append(self._exploiter_sd)
-            weights.append(self._exploiter_w)
-
-        return entries, weights
+        return self._exploiter_agent is not None
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -272,49 +301,30 @@ class PopulationManager:
 
 class PopulationShooterEnv(ShooterGymEnv):
     """
-    A ShooterGymEnv whose Blue opponent can be replaced at runtime.
-    Used so the main RNaD can face a sampled population member per episode.
+    A ShooterGymEnv whose Blue opponent is resampled from the population
+    at the start of every episode, so a newly-injected exploiter is picked
+    up immediately without needing to reconstruct any envs.
     """
 
-    def __init__(self):
+    def __init__(self, population: "PopulationManager"):
         super().__init__(self_play=False, opponent="random")
+        self._population = population
 
-    def set_opponent(self, fn: Callable) -> None:
-        self._opponent_fn = fn
+    def reset(self, **kwargs):
+        # Resample a fresh opponent from the current population before each episode
+        self._opponent_fn = self._population.sample_opponents(1)[0]
+        return super().reset(**kwargs)
 
 
 def make_population_env_fn(population: PopulationManager, batch_size: int):
+    """Returns an env_fn that creates PopulationShooterEnv instances.
+
+    Each env resamples its own opponent from the population at every episode
+    reset, so the full population (including any newly-arrived exploiter) is
+    always reflected without requiring env reconstruction.
     """
-    Returns an env_fn that, when called `batch_size` times, creates envs
-    with opponents pre-sampled from `population`.
-
-    We stash the sampled opponents in a thread-local list that is consumed
-    in order.  This works because RNaD calls env_fn exactly `batch_size`
-    times sequentially in __init__ / when rebuilding after reset.
-
-    The trick: we sample all `batch_size` opponents once (per trajectory
-    collection call) and rotate them.  Because the opponents are stateless
-    callables this is safe.
-    """
-    _sampled: List[Callable] = []
-
-    def resample():
-        nonlocal _sampled
-        _sampled = population.sample_opponents(batch_size)
-
-    resample()  # initial sample
-
-    call_count = [0]
-
     def env_fn():
-        idx = call_count[0] % batch_size
-        if idx == 0:
-            resample()
-        opp = _sampled[idx]
-        call_count[0] += 1
-        env = PopulationShooterEnv()
-        env.set_opponent(opp)
-        return env
+        return PopulationShooterEnv(population)
 
     return env_fn
 
@@ -336,12 +346,23 @@ def _exploiter_worker(
     --------
     Receives from parent:
         ("train", state_dict_cpu, gen_id)
-            → trains exploiter against frozen RNaD snapshot
-            → replies ("done", gen_id, final_win_rate, exploiter_state_dict_cpu)
+            → trains a PPO exploiter against the frozen RNaD snapshot
+            → replies ("done", gen_id, final_win_rate, zip_path_str)
+              where zip_path_str is the on-disk path to the saved .zip
 
         ("quit",)
             → exits cleanly
     """
+    try:
+        from stable_baselines3 import PPO
+        from stable_baselines3.common.env_util import make_vec_env
+        from stable_baselines3.common.callbacks import BaseCallback
+    except ImportError as e:
+        raise ImportError(
+            "stable_baselines3 is required for PPO exploiter training. "
+            "Install it with:  pip install stable-baselines3"
+        ) from e
+
     run_dir = Path(run_dir_str)
     torch.manual_seed(config.seed + 9999)
     np.random.seed(config.seed + 9999)
@@ -361,9 +382,9 @@ def _exploiter_worker(
             continue
 
         _, rnad_sd, gen_id = msg
-        print(f"\n[exploiter worker] gen {gen_id}: starting exploiter training")
+        print(f"\n[exploiter worker] gen {gen_id}: starting PPO exploiter training")
 
-        # Rebuild the frozen main net from the received state dict
+        # ── Rebuild the frozen RNaD main net from the received state dict ─────
         main_net = PolicyNetwork(OBS_DIM, N_ACTIONS, config.hidden_layers)
         main_net.load_state_dict(rnad_sd)
         main_net.eval()
@@ -373,91 +394,104 @@ def _exploiter_worker(
         ckpt_dir = run_dir / f"exploiter_gen{gen_id:04d}"
         ckpt_dir.mkdir(parents=True, exist_ok=True)
 
-        # Build exploiter R-NaD (single-agent mode)
-        max_learner_steps = (
-            config.exploiter_max_steps
-            // (config.exploiter_batch_size * config.exploiter_traj_max)
-            + 1
-        )
-        expl_cfg = RNaDConfig(
-            policy_network_layers=config.hidden_layers,
-            batch_size=config.exploiter_batch_size,
-            trajectory_max=config.exploiter_traj_max,
-            learning_rate=config.learning_rate,
-            adam=AdamConfig(b1=0.0, b2=0.999, eps=1e-7),
-            clip_gradient=10_000,
-            target_network_avg=0.001,
-            entropy_schedule_repeats=(1,),
-            entropy_schedule_size=(max_learner_steps,),
-            eta_reward_transform=0.2,
-            nerd=NerdConfig(beta=2.0, clip=10_000),
-            c_vtrace=1.0,
-            num_players=1,
-            seed=config.seed + gen_id * 31,
-        )
-
-        def env_fn():
+        # ── Vectorised Minimax env ─────────────────────────────────────────────
+        def _env_fn():
             return MinimaxShooterGymEnv(
                 main_net=main_net,
                 alpha=config.alpha,
                 gamma=config.gamma,
                 v_shift=config.v_shift,
-                device=config.device,
+                device="cpu",
             )
 
-        expl_model = RNaD(env_fn=env_fn, config=expl_cfg, device=config.device)
+        train_env = make_vec_env(
+            _env_fn,
+            n_envs=config.exploiter_n_envs,
+            seed=config.seed + gen_id * 31,
+        )
 
+        # ── PPO model ──────────────────────────────────────────────────────────
+        model = PPO(
+            policy="MlpPolicy",
+            env=train_env,
+            n_steps=config.exploiter_n_steps,
+            batch_size=config.exploiter_batch_size,
+            n_epochs=config.exploiter_n_epochs,
+            learning_rate=config.exploiter_lr,
+            gamma=0.99,
+            gae_lambda=0.95,
+            clip_range=config.exploiter_clip_range,
+            ent_coef=config.exploiter_ent_coef,
+            vf_coef=0.5,
+            max_grad_norm=0.5,
+            policy_kwargs={"net_arch": list(config.hidden_layers)},
+            device="cpu",
+            verbose=0,
+            seed=config.seed + gen_id * 31,
+        )
+
+        # ── Callback: periodic eval + early stopping ───────────────────────────
         t0 = time.perf_counter()
         final_win_rate = 0.0
-        eval_interval = config.exploiter_batch_size * config.exploiter_traj_max * 10
+        eval_interval  = config.exploiter_n_envs * config.exploiter_n_steps * 10
 
-        while expl_model.actor_steps < config.exploiter_max_steps:
-            prev = expl_model.actor_steps
-            expl_model.step()
-            expl_model.num_timesteps += expl_model.actor_steps - prev
+        class _Callback(BaseCallback):
+            def __init__(self):
+                super().__init__()
+                self._last_eval = 0
 
-            # Periodic eval
-            if expl_model.actor_steps % eval_interval < (
-                config.exploiter_batch_size * config.exploiter_traj_max
-            ):
+            def _on_step(self) -> bool:
+                nonlocal final_win_rate
+                n = self.num_timesteps
+                if n - self._last_eval < eval_interval:
+                    return True
+                self._last_eval = n
+
                 stats = evaluate_vs_main(
-                    expl_model.params, main_net,
-                    num_episodes=_EVAL_EPISODES, device=config.device,
+                    PPOMainAgent(self.model), main_net,
+                    num_episodes=_EVAL_EPISODES, device="cpu",
                 )
                 final_win_rate = stats["win_rate"]
                 elapsed = (time.perf_counter() - t0) / 60
                 print(
                     f"[exploiter gen {gen_id}] "
-                    f"steps={expl_model.actor_steps:>7,}  "
+                    f"steps={n:>7,}  "
                     f"win_rate={final_win_rate:.0%}  "
                     f"elapsed={elapsed:.1f}min"
                 )
                 if final_win_rate >= config.exploiter_win_target:
-                    print(f"[exploiter gen {gen_id}] ✓ reached {final_win_rate:.0%} win-rate — stopping early")
-                    break
+                    print(
+                        f"[exploiter gen {gen_id}] ✓ reached "
+                        f"{final_win_rate:.0%} win-rate — stopping early"
+                    )
+                    return False   # signal SB3 to stop
+                return True
 
-        # Final eval regardless (ensures we always have an accurate number)
+        model.learn(
+            total_timesteps=config.exploiter_max_steps,
+            callback=_Callback(),
+            reset_num_timesteps=True,
+        )
+        train_env.close()
+
+        # ── Final eval (always, even after early stop) ─────────────────────────
         stats = evaluate_vs_main(
-            expl_model.params, main_net,
-            num_episodes=_EVAL_EPISODES, device=config.device,
+            PPOMainAgent(model), main_net,
+            num_episodes=_EVAL_EPISODES, device="cpu",
         )
         final_win_rate = stats["win_rate"]
         print(
             f"[exploiter gen {gen_id}] FINAL win_rate={final_win_rate:.0%}  "
-            f"steps={expl_model.actor_steps:,}"
+            f"steps={model.num_timesteps:,}"
         )
 
-        torch.save(
-            expl_model.params.state_dict(),
-            ckpt_dir / "final_exploiter.pt",
-        )
+        # ── Save .zip and send the path back to the parent ─────────────────────
+        # SB3 model.save() appends .zip automatically
+        zip_stem = str(ckpt_dir / "final_exploiter")
+        model.save(zip_stem)
+        zip_path = zip_stem + ".zip"
 
-        conn.send((
-            "done",
-            gen_id,
-            final_win_rate,
-            _state_dict_cpu(expl_model.params),
-        ))
+        conn.send(("done", gen_id, final_win_rate, zip_path))
 
     conn.close()
 
@@ -602,11 +636,11 @@ def train_league(config: LeagueConfig):
         if exploiter_busy and parent_conn.poll():
             resp = parent_conn.recv()
             if resp[0] == "done":
-                _, recv_gen, win_rate, expl_sd = resp
+                _, recv_gen, win_rate, zip_path = resp
                 exploiter_busy = False
 
-                # Inject exploiter into population
-                population.set_exploiter(expl_sd)
+                # Inject exploiter into population (loads the .zip from disk)
+                population.set_exploiter(zip_path)
 
                 # Log the *post-training* win-rate — key convergence metric
                 writer.add_scalar("exploiter/final_win_rate",  win_rate, recv_gen)
@@ -668,8 +702,8 @@ def train_league(config: LeagueConfig):
         print("Waiting for in-flight exploiter to finish …")
         resp = parent_conn.recv()
         if resp[0] == "done":
-            _, recv_gen, win_rate, expl_sd = resp
-            population.set_exploiter(expl_sd)
+            _, recv_gen, win_rate, zip_path = resp
+            population.set_exploiter(zip_path)
             print(f"  Exploiter gen {recv_gen} finished: win_rate={win_rate:.0%}")
             writer.add_scalar("exploiter/final_win_rate", win_rate, recv_gen)
             exploiter_history.append({
@@ -713,7 +747,7 @@ def parse_args():
     )
 
     # ── RNaD ──────────────────────────────────────────────────────────────────
-    p.add_argument("--total-main-steps",    type=int,   default=2_000_000)
+    p.add_argument("--total-main-steps",    type=int,   default=200_000_000)
     p.add_argument("--hidden-layers",       type=int,   nargs="+", default=[256, 256])
     p.add_argument("--batch-size",          type=int,   default=256)
     p.add_argument("--trajectory-max",      type=int,   default=200)
@@ -724,22 +758,34 @@ def parse_args():
     # ── Population ────────────────────────────────────────────────────────────
     p.add_argument("--population-size",     type=int,   default=3,
                    help="Number of past RNaD snapshots to keep in population")
-    p.add_argument("--rnad-weight",         type=float, default=0.9,
+    p.add_argument("--rnad-weight",         type=float, default=0.7,
                    help="Relative sampling weight for RNaD snapshot slots")
-    p.add_argument("--exploiter-weight",    type=float, default=0.1,
+    p.add_argument("--exploiter-weight",    type=float, default=0.3,
                    help="Relative sampling weight for the exploiter slot")
     p.add_argument("--snapshot-interval",   type=int,   default=100_000,
                    help="Actor steps between RNaD population snapshots")
 
-    # ── Exploiter ─────────────────────────────────────────────────────────────
-    p.add_argument("--exploiter-interval",  type=int,   default=150_000,
+    # ── Exploiter (PPO) ───────────────────────────────────────────────────────
+    p.add_argument("--exploiter-interval",   type=int,   default=100_000,
                    help="Actor steps between exploiter launches")
-    p.add_argument("--exploiter-max-steps", type=int,   default=2_000_000,
+    p.add_argument("--exploiter-max-steps",  type=int,   default=20_000,
                    help="Max actor steps per exploiter run")
-    p.add_argument("--exploiter-win-target",type=float, default=0.85,
+    p.add_argument("--exploiter-win-target", type=float, default=0.9,
                    help="Exploiter stops early when win-rate reaches this")
-    p.add_argument("--exploiter-batch-size",type=int,   default=128)
-    p.add_argument("--exploiter-traj-max",  type=int,   default=200)
+    p.add_argument("--exploiter-n-envs",     type=int,   default=8,
+                   help="Parallel envs for PPO rollout collection")
+    p.add_argument("--exploiter-n-steps",    type=int,   default=2048,
+                   help="Steps per env per PPO rollout")
+    p.add_argument("--exploiter-batch-size", type=int,   default=64,
+                   help="PPO mini-batch size (must divide n_envs * n_steps)")
+    p.add_argument("--exploiter-n-epochs",   type=int,   default=10,
+                   help="Gradient epochs per PPO rollout")
+    p.add_argument("--exploiter-lr",         type=float, default=3e-4,
+                   help="PPO Adam learning rate")
+    p.add_argument("--exploiter-clip-range", type=float, default=0.2,
+                   help="PPO clip epsilon")
+    p.add_argument("--exploiter-ent-coef",   type=float, default=0.01,
+                   help="PPO entropy bonus coefficient")
 
     # ── Minimax reward ────────────────────────────────────────────────────────
     p.add_argument("--alpha",   type=float, default=0.05)
@@ -773,8 +819,13 @@ if __name__ == "__main__":
         exploiter_interval      = args.exploiter_interval,
         exploiter_max_steps     = args.exploiter_max_steps,
         exploiter_win_target    = args.exploiter_win_target,
+        exploiter_n_envs        = args.exploiter_n_envs,
+        exploiter_n_steps       = args.exploiter_n_steps,
         exploiter_batch_size    = args.exploiter_batch_size,
-        exploiter_traj_max      = args.exploiter_traj_max,
+        exploiter_n_epochs      = args.exploiter_n_epochs,
+        exploiter_lr            = args.exploiter_lr,
+        exploiter_clip_range    = args.exploiter_clip_range,
+        exploiter_ent_coef      = args.exploiter_ent_coef,
         alpha                   = args.alpha,
         gamma                   = args.gamma,
         v_shift                 = args.v_shift,
