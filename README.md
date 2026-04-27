@@ -1,6 +1,6 @@
 # Adversarial Learning — Tactical Shooter
 
-A research project exploring adversarial multi-agent reinforcement learning in a custom 2D tactical shooter environment. Two algorithms are implemented and compared: **PPO** (Proximal Policy Optimization via [Stable Baselines 3](https://stable-baselines3.readthedocs.io/)) for single-team training against a fixed opponent, and **R-NaD** (Regularized Nash Dynamics) for self-play convergence to a Nash equilibrium.
+A research project exploring adversarial multi-agent reinforcement learning in a custom 2D tactical shooter environment. Three training regimes are implemented: **PPO** (Proximal Policy Optimization via [Stable Baselines 3](https://stable-baselines3.readthedocs.io/)) for single-team training against a fixed opponent, **R-NaD** (Regularized Nash Dynamics) for self-play convergence to a Nash equilibrium, and **Minimax Exploiter / League Training** for iterative adversarial improvement.
 
 ---
 
@@ -17,9 +17,9 @@ A research project exploring adversarial multi-agent reinforcement learning in a
 
 ## Environment
 
-### ShooterEnvironment (`pettingzoo_env/shooter_env.py`)
+### ShooterEnvironment (`environments/shooter_env.py`)
 
-A symmetric N-vs-N tactical shooter built on [PettingZoo](https://pettingzoo.farama.org/) `ParallelEnv`. Two teams (Red and Blue) spawn on opposite corners of an 8×8 grid and fight until one team is eliminated or the step limit is reached.
+A symmetric N-vs-N tactical shooter built on [PettingZoo](https://pettingzoo.farama.org/) `ParallelEnv`. Two teams (Red and Blue) spawn on opposite corners of a 9×9 grid and fight until one team is eliminated or the step limit is reached.
 
 **Default configuration:** 1 agent per team (1v1).
 
@@ -39,7 +39,7 @@ Moving into a wall cell is silently blocked (the action is consumed but position
 
 #### Vision & Shooting
 
-Each agent has a **90° vision cone** (±45° from heading) with a **4-cell range**. Walls block both vision and line-of-sight. When an enemy is inside the cone and has clear line-of-sight, the agent shoots with **100% hit probability** each step.
+Each agent has a **90° vision cone** (±45° from heading) with a **3-cell range**. Walls block both vision and line-of-sight. When an enemy is inside the cone and has clear line-of-sight, the agent shoots with **100% hit probability** each step.
 
 #### HP & Elimination
 
@@ -72,7 +72,7 @@ Pass `render_mode="human"` to open a Pygame window. The renderer shows agent pos
 
 ---
 
-### ShooterGymEnv (`pettingzoo_env/shooter_gym_env.py`)
+### ShooterGymEnv (`environments/shooter_gym_env.py`)
 
 A `gymnasium.Env` wrapper around `ShooterEnvironment` that makes it compatible with both **PPO** (single-agent) and **R-NaD** (self-play). Controlled via the `self_play` constructor argument.
 
@@ -134,7 +134,7 @@ SB3 handles rollout collection, GAE computation, mini-batch updates, and TensorB
 
 ---
 
-### R-NaD (`new_rnad.py`)
+### R-NaD (`rnad.py`)
 
 **Regularized Nash Dynamics** ([Perolat et al., 2022](https://arxiv.org/pdf/2206.15378.pdf)) — an algorithm that provably converges to a Nash equilibrium in two-player zero-sum games via self-play.
 
@@ -183,7 +183,68 @@ model = RNaD.load("model.pt", env_fn=env_fn)
 
 ---
 
-### Scripted Agent (`pettingzoo_env/scripted_shooter_agent.py`)
+### Minimax Exploiter (`minimax_exploiter.py`)
+
+Based on [Bairamian et al., AAMAS 2024](https://arxiv.org/abs/2311.17190). Augments the exploiter's reward with the *negative* value estimate of the frozen main agent, steering it toward states the main agent considers bad for itself:
+
+```
+R_minimax = R_env  -  alpha * gamma * (1 - done) * V_main(s'_blue)
+```
+
+The **main agent** is trained with R-NaD (self-play Nash equilibrium). The **exploiter** is trained with PPO against the frozen main agent, which is a better fit for the single-agent exploitation problem.
+
+Two modes:
+
+```bash
+# League: RNaD main agent alternates with PPO exploiter
+python minimax_exploiter.py league --total-main-steps 500_000
+
+# Train a single PPO exploiter against a saved RNaD checkpoint
+python minimax_exploiter.py exploiter --main-checkpoint runs/rnad_main/best_model.pt
+
+# Train a single PPO exploiter against a saved PPO checkpoint
+python minimax_exploiter.py exploiter --main-checkpoint runs/ppo_main/best_model.zip
+```
+
+Key hyperparameters (`--alpha`, `--gamma`, `--v-shift`) control the minimax reward signal. The exploiter uses all standard PPO arguments (`--n-envs`, `--n-steps`, `--ppo-batch-size`, etc.).
+
+---
+
+### Multiprocess League Training (`league_training.py`)
+
+A concurrent variant where the R-NaD main agent and PPO exploiter train **simultaneously** in separate processes:
+
+```
+MAIN PROCESS                          EXPLOITER PROCESS
+─────────────────────────             ─────────────────────
+RNaD trains continuously              Receives RNaD snapshot
+                                      ↓
+Every snapshot_interval steps:        Trains PPO exploiter
+  → push snapshot to population       ↓
+                                      Returns win_rate + .zip path
+Every exploiter_interval steps:
+  → send weights to exploiter proc
+  → inject result into population
+```
+
+The **population** is a rolling window of past RNaD snapshots (default: last 3) plus the latest trained exploiter. RNaD trains against this mixed population, with configurable sampling weights (default: 70% RNaD snapshots, 30% exploiter). The exploiter is retrained approximately every 100k main-agent actor steps.
+
+```bash
+python league_training.py --total-main-steps 2_000_000
+
+# Increase exploiter pressure
+python league_training.py --exploiter-weight 0.4 --rnad-weight 0.6
+
+# Quick smoke test
+python league_training.py --total-main-steps 50_000 \
+    --exploiter-interval 10000 --exploiter-max-steps 5000
+```
+
+The exploiter win-rate over generations is the primary **Nash convergence proxy** — lower win-rate means the main agent is harder to exploit.
+
+---
+
+### Scripted Agent (`environments/scripted_shooter_agent.py`)
 
 A deterministic rule-based opponent used as a training baseline for PPO. It uses **BFS pathfinding** to navigate toward the nearest living enemy and rotates to face the target when within 3 cells.
 
@@ -194,24 +255,23 @@ A deterministic rule-based opponent used as a training baseline for PPO. It uses
 ```
 adversarial_learning_project/
 │
-├── new_rnad.py                      # R-NaD algorithm (SB3-compatible)
+├── rnad.py                          # R-NaD algorithm (SB3-compatible)
 ├── train.py                         # Unified training script (PPO + R-NaD)
-├── animate_rnad.py                  # Visualise a trained R-NaD model
+├── minimax_exploiter.py             # Minimax Exploiter (sequential league)
+├── league_training.py               # Multiprocess league training
+├── animate.py                       # Visualise trained PPO or R-NaD models
 │
-├── pettingzoo_env/
+├── environments/
 │   ├── shooter_env.py               # Core PettingZoo environment
 │   ├── shooter_gym_env.py           # Gymnasium wrapper (SB3 PPO + R-NaD)
 │   ├── scripted_shooter_agent.py    # Rule-based BFS opponent
-│   ├── utils.py                     # BFS pathfinder, map generator, helpers
-│   └── prisoner_env.py              # Separate pursuit-evasion environment
+│   └── utils.py                     # BFS pathfinder, helpers
 │
-├── legacy_rnad/                     # Archived JAX-based R-NaD (unmaintained)
 ├── test/                            # PettingZoo API validation tests
 ├── plotting/                        # Training metrics visualisation
-├── assets/                          # Pygame sprites
 │
-├── runs/                            # R-NaD training outputs (gitignored)
-├── requirement.txt
+├── runs/                            # Training outputs (gitignored)
+├── requirements.txt
 └── .gitignore
 ```
 
@@ -239,16 +299,14 @@ conda install pytorch torchvision torchaudio cpuonly -c pytorch
 ### 3. Install remaining dependencies
 
 ```bash
-pip install -r requirement.txt
+pip install -r requirements.txt
 ```
 
-`requirement.txt` includes: `pygame`, `numpy`, `pettingzoo`, `pymunk`, `SuperSuit`, `tensorboard`, `tqdm`, `matplotlib`, `gymnasium`, `stable-baselines3`.
+`requirements.txt` includes: `pygame`, `numpy`, `pettingzoo`, `pymunk`, `SuperSuit`, `tensorboard`, `tqdm`, `matplotlib`, `gymnasium`, `stable-baselines3`.
 
 ---
 
 ## Training
-
-Both algorithms are trained through a single unified script — `train.py` — which shares the evaluation loop, TensorBoard logging, checkpointing, and run-directory layout. Choose the algorithm with the first positional argument.
 
 ```bash
 tensorboard --logdir runs/   # monitor any run
@@ -325,7 +383,7 @@ python train.py ppo \
     --device cuda
 
 # Resume from a saved checkpoint
-python train.py ppo --load runs/ppo_experiment_1_20260101_120000/best_model.zip
+python train.py ppo --load runs/ppo_experiment_1/best_model.zip
 ```
 
 #### All arguments — `ppo`
@@ -349,10 +407,47 @@ python train.py ppo --load runs/ppo_experiment_1_20260101_120000/best_model.zip
 
 ---
 
-### Run directory layout (both algos)
+### Minimax Exploiter — `python minimax_exploiter.py`
+
+See [Algorithms → Minimax Exploiter](#minimax-exploiter-minimax_exploiterpy) above for usage.
+
+Key arguments (shared by both `league` and `exploiter` subcommands):
+
+| Argument                    | Default  | Description                                       |
+| --------------------------- | -------- | ------------------------------------------------- |
+| `--alpha`                 | 0.05     | Minimax reward mixing coefficient                 |
+| `--gamma`                 | 0.995    | Discount factor in the Minimax reward term        |
+| `--v-shift`               | 25.0     | Shift V_main so the bonus is always ≤ 0          |
+| `--n-envs`                | 8        | Parallel envs for PPO rollout collection          |
+| `--n-steps`               | 2048     | Steps per env per PPO rollout                     |
+| `--ppo-batch-size`        | 64       | PPO mini-batch size                               |
+| `--convergence-win-rate`  | 0.85     | Win-rate threshold to declare exploiter converged |
+
+---
+
+### Multiprocess League — `python league_training.py`
+
+See [Algorithms → Multiprocess League Training](#multiprocess-league-training-league_trainingpy) above for usage.
+
+Key arguments:
+
+| Argument                    | Default     | Description                                    |
+| --------------------------- | ----------- | ---------------------------------------------- |
+| `--total-main-steps`      | 200 000 000 | Total RNaD actor steps                         |
+| `--exploiter-interval`    | 100 000     | Actor steps between exploiter launches         |
+| `--exploiter-max-steps`   | 20 000      | Max steps per exploiter run                    |
+| `--exploiter-win-target`  | 0.9         | Exploiter stops early at this win-rate         |
+| `--population-size`       | 3           | Number of past RNaD snapshots kept             |
+| `--rnad-weight`           | 0.7         | Sampling weight for RNaD snapshot slots        |
+| `--exploiter-weight`      | 0.3         | Sampling weight for the exploiter slot         |
+| `--snapshot-interval`     | 100 000     | Actor steps between RNaD population snapshots  |
+
+---
+
+### Run directory layout
 
 ```
-runs/rnad_experiment_1_20260101_120000/
+runs/rnad_experiment_1/
   config.json            # full reproducible config
   best_model.pt/.zip     # checkpoint with highest eval reward
   final_model.pt/.zip    # end-of-training snapshot
@@ -363,36 +458,73 @@ runs/rnad_experiment_1_20260101_120000/
   events.out.tfevents.*  # TensorBoard logs
 ```
 
-### TensorBoard scalars (both algos)
+For league runs:
 
-| Tag                   | Description                                |
-| --------------------- | ------------------------------------------ |
-| `eval/mean_reward`  | Mean episode reward (Red vs random Blue)   |
-| `eval/std_reward`   | Std of episode rewards                     |
-| `eval/win_rate`     | Fraction of evaluation episodes won by Red |
-| `train/fps`         | Actor steps per second                     |
+```
+runs/league/
+  config.json
+  exploiter_history.json      # per-generation win-rates (convergence proxy)
+  final_rnad.pt
+  rnad_at_exploiter_gen0001.pt
+  exploiter_gen0001/
+    final_exploiter.zip
+  ...
+```
 
-**R-NaD only**
+---
 
-| Tag                   | Description                                |
-| --------------------- | ------------------------------------------ |
-| `train/loss`        | Combined V + NeuRD loss                    |
-| `train/mean_reward` | Mean batch trajectory reward               |
-| `train/alpha`       | Current entropy schedule α                |
-| `train/actor_steps` | Cumulative environment steps               |
+## Visualisation
 
-**PPO only** (via SB3 internal logger)
+### Animate — `animate.py`
 
-`train/policy_gradient_loss`, `train/value_loss`, `train/entropy_loss`, `train/approx_kl`, `train/clip_fraction`, …
+Opens a Pygame window and loops through shooter games using a trained model. Supports both PPO and R-NaD checkpoints.
 
-To load a trained model for inference:
+```bash
+# R-NaD: load best model from a run directory
+python animate.py rnad --run runs/rnad_experiment_1
+
+# R-NaD: point directly to a .pt file
+python animate.py rnad --model runs/rnad_experiment_1/final_model.pt
+
+# PPO: load best model from a run directory
+python animate.py ppo --run runs/ppo_experiment_1
+
+# PPO: point directly to a .zip file
+python animate.py ppo --model runs/ppo_experiment_1/best_model.zip
+
+# Modes
+python animate.py rnad --run runs/... --mode self_play    # both sides: trained model
+python animate.py rnad --run runs/... --mode vs_random    # red=trained, blue=random
+python animate.py rnad --run runs/... --mode vs_scripted  # red=trained, blue=scripted
+
+# Slow down for analysis / run only N episodes
+python animate.py ppo --run runs/... --fps 3 --episodes 5
+```
+
+#### All arguments
+
+| Argument            | Default       | Description                                                                            |
+| ------------------- | ------------- | -------------------------------------------------------------------------------------- |
+| `--run`           | —            | Path to run directory; loads `best_model.pt/.zip`, falls back to `final_model.pt/.zip` |
+| `--model`         | —            | Direct path to a `.pt` or `.zip` file                                                |
+| `--mode`          | `self_play` | `self_play`: both sides use trained policy (R-NaD only). `vs_random` / `vs_scripted`: Red=trained |
+| `--fps`           | 5             | Pygame frames per second                                                               |
+| `--episodes`      | 0 (∞)        | Episodes to play before exiting                                                        |
+| `--deterministic` | off           | Use argmax policy instead of sampling                                                  |
+| `--device`        | `cpu`       | Torch device                                                                           |
+
+Close the window or press `Ctrl+C` to stop. A summary (mean reward, win rate) is printed at the end.
+
+---
+
+### Inference example
 
 ```python
 from stable_baselines3 import PPO
-from pettingzoo_env.shooter_gym_env import ShooterGymEnv
+from environments.shooter_gym_env import ShooterGymEnv
 
 env   = ShooterGymEnv(self_play=False, opponent="scripted")
-model = PPO.load("runs/ppo_20260101_120000/best_model.zip")
+model = PPO.load("runs/ppo_experiment_1/best_model.zip")
 
 obs, _ = env.reset()
 while True:
@@ -401,42 +533,3 @@ while True:
     if terminated or truncated:
         break
 ```
-
----
-
-## Visualisation
-
-### Animate R-NaD — `animate_rnad.py`
-
-Opens a Pygame window and loops through shooter games using a trained model.
-
-```bash
-# Load best model from a run directory
-python animate_rnad.py --run runs/experiment_1_20260101_120000
-
-# Point to a specific checkpoint
-python animate_rnad.py --model runs/experiment_1_20260101_120000/checkpoints/model_step_0010000.pt
-
-# Red=trained vs Blue=random (shows learned advantage)
-python animate_rnad.py --run runs/... --mode vs_random
-
-# Slow down and use deterministic policy
-python animate_rnad.py --run runs/... --fps 3 --deterministic
-
-# Run exactly 10 episodes then print a summary
-python animate_rnad.py --run runs/... --episodes 10
-```
-
-#### All arguments
-
-| Argument            | Default       | Description                                                                           |
-| ------------------- | ------------- | ------------------------------------------------------------------------------------- |
-| `--run`           | —            | Path to run directory; loads `best_model.pt`, falls back to `final_model.pt`      |
-| `--model`         | —            | Direct path to any `.pt` file                                                       |
-| `--mode`          | `self_play` | `self_play`: both sides use trained policy. `vs_random`: Red=trained, Blue=random |
-| `--fps`           | 5             | Pygame frames per second                                                              |
-| `--episodes`      | 0 (∞)        | Episodes to play before exiting                                                       |
-| `--deterministic` | off           | Use argmax policy instead of sampling                                                 |
-| `--device`        | `cpu`       | Torch device                                                                          |
-
-Close the window or press `Ctrl+C` to stop. A summary (mean reward, win rate) is printed at the end.
