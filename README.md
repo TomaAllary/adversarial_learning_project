@@ -117,17 +117,17 @@ The agent controls Red; Blue is driven by an `opponent` policy. `step()` returns
 
 **Proximal Policy Optimization** via [Stable Baselines 3](https://stable-baselines3.readthedocs.io/). Red is trained as a single agent against a fixed opponent (scripted BFS or random) using `ShooterGymEnv` with `self_play=False`.
 
-| Hyperparameter             | Value         |
-| -------------------------- | ------------- |
-| Learning rate              | 3e-4          |
-| Discount γ                | 0.99          |
-| GAE λ                     | 0.95          |
-| PPO clip ε                | 0.2           |
-| Entropy coefficient        | 0.01          |
-| Value function coefficient | 0.5           |
-| Batch size                 | 64            |
-| Update epochs              | 10            |
-| Rollout steps per env      | 2048          |
+| Hyperparameter             | Value          |
+| -------------------------- | -------------- |
+| Learning rate              | 3e-4           |
+| Discount γ                | 0.99           |
+| GAE λ                     | 0.95           |
+| PPO clip ε                | 0.2            |
+| Entropy coefficient        | 0.01           |
+| Value function coefficient | 0.5            |
+| Batch size                 | 64             |
+| Update epochs              | 10             |
+| Rollout steps per env      | 2048           |
 | Network                    | MLP [256, 256] |
 
 SB3 handles rollout collection, GAE computation, mini-batch updates, and TensorBoard logging automatically. An `EvalCallback` saves the best checkpoint and a `CheckpointCallback` saves periodic snapshots.
@@ -293,7 +293,7 @@ conda activate adversarial
 conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia
 
 # CPU only
-conda install pytorch torchvision torchaudio cpuonly -c pytorch
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
 ```
 
 ### 3. Install remaining dependencies
@@ -333,37 +333,37 @@ python train.py rnad \
 
 **Common**
 
-| Argument           | Default   | Description                              |
-| ------------------ | --------- | ---------------------------------------- |
-| `--run-name`     | auto      | Base name; `rnad_` + timestamp appended  |
-| `--runs-dir`     | `runs`  | Root directory for outputs               |
-| `--total-steps`  | 500 000   | Stop after this many actor steps         |
-| `--eval-episodes`| 20        | Episodes per evaluation round            |
-| `--hidden-layers`| `256 256` | MLP hidden layer widths                 |
-| `--learning-rate`| 5e-5      | Adam learning rate                       |
-| `--seed`         | 42        | RNG seed                                 |
-| `--device`       | `cpu`   | Torch device (`cpu`, `cuda`, `cuda:0`, …)|
+| Argument            | Default     | Description                                      |
+| ------------------- | ----------- | ------------------------------------------------ |
+| `--run-name`      | auto        | Base name;`rnad_` + timestamp appended         |
+| `--runs-dir`      | `runs`    | Root directory for outputs                       |
+| `--total-steps`   | 500 000     | Stop after this many actor steps                 |
+| `--eval-episodes` | 20          | Episodes per evaluation round                    |
+| `--hidden-layers` | `256 256` | MLP hidden layer widths                          |
+| `--learning-rate` | 5e-5        | Adam learning rate                               |
+| `--seed`          | 42          | RNG seed                                         |
+| `--device`        | `cpu`     | Torch device (`cpu`, `cuda`, `cuda:0`, …) |
 
 **R-NaD specific**
 
-| Argument                       | Default   | Description                                       |
-| ------------------------------ | --------- | ------------------------------------------------- |
-| `--log-interval`             | 50        | Log training scalars every N learner steps        |
-| `--eval-interval`            | 500       | Evaluate vs random every N learner steps          |
-| `--checkpoint-interval`      | 2 000     | Save checkpoint every N learner steps             |
-| `--batch-size`               | 256       | Parallel environment instances                    |
-| `--trajectory-max`           | 200       | Steps per trajectory                              |
-| `--clip-gradient`            | 10 000    | Global gradient norm clip                         |
-| `--adam-b1`                  | 0.0       | Adam β₁                                          |
-| `--adam-b2`                  | 0.999     | Adam β₂                                          |
-| `--adam-eps`                 | 1e-7      | Adam ε                                            |
-| `--target-network-avg`       | 0.001     | EMA rate τ for target network                    |
-| `--eta-reward-transform`     | 0.2       | Entropy regularisation strength η                |
-| `--c-vtrace`                 | 1.0       | V-trace importance weight clip                    |
-| `--nerd-beta`                | 2.0       | NeuRD gradient clip threshold                     |
-| `--nerd-clip`                | 10 000    | NeuRD logit clip                                  |
-| `--entropy-schedule-size`    | `20000`   | Steps per entropy phase                           |
-| `--entropy-schedule-repeats` | `1`       | Repetitions of each phase                         |
+| Argument                       | Default   | Description                                |
+| ------------------------------ | --------- | ------------------------------------------ |
+| `--log-interval`             | 50        | Log training scalars every N learner steps |
+| `--eval-interval`            | 500       | Evaluate vs random every N learner steps   |
+| `--checkpoint-interval`      | 2 000     | Save checkpoint every N learner steps      |
+| `--batch-size`               | 256       | Parallel environment instances             |
+| `--trajectory-max`           | 200       | Steps per trajectory                       |
+| `--clip-gradient`            | 10 000    | Global gradient norm clip                  |
+| `--adam-b1`                  | 0.0       | Adam β₁                                  |
+| `--adam-b2`                  | 0.999     | Adam β₂                                  |
+| `--adam-eps`                 | 1e-7      | Adam ε                                    |
+| `--target-network-avg`       | 0.001     | EMA rate τ for target network             |
+| `--eta-reward-transform`     | 0.2       | Entropy regularisation strength η         |
+| `--c-vtrace`                 | 1.0       | V-trace importance weight clip             |
+| `--nerd-beta`                | 2.0       | NeuRD gradient clip threshold              |
+| `--nerd-clip`                | 10 000    | NeuRD logit clip                           |
+| `--entropy-schedule-size`    | `20000` | Steps per entropy phase                    |
+| `--entropy-schedule-repeats` | `1`     | Repetitions of each phase                  |
 
 ---
 
@@ -390,20 +390,20 @@ python train.py ppo --load runs/ppo_experiment_1/best_model.zip
 
 **Common** (same as R-NaD table above, with different defaults)
 
-| Argument           | Default   | Description                              |
-| ------------------ | --------- | ---------------------------------------- |
-| `--learning-rate`| 3e-4      | PPO learning rate                        |
-| `--device`       | `auto`  | Torch device                             |
+| Argument            | Default  | Description       |
+| ------------------- | -------- | ----------------- |
+| `--learning-rate` | 3e-4     | PPO learning rate |
+| `--device`        | `auto` | Torch device      |
 
 **PPO specific**
 
-| Argument                  | Default      | Description                                   |
-| ------------------------- | ------------ | --------------------------------------------- |
-| `--n-envs`              | 8            | Parallel training environments                |
-| `--opponent`            | `scripted` | Blue policy: `scripted` or `random`         |
-| `--load`                | —            | Path to a `.zip` checkpoint to resume from   |
-| `--eval-interval`       | 10 000       | Evaluate vs random every N actor steps        |
-| `--checkpoint-interval` | 50 000       | Save checkpoint every N actor steps           |
+| Argument                  | Default      | Description                                  |
+| ------------------------- | ------------ | -------------------------------------------- |
+| `--n-envs`              | 8            | Parallel training environments               |
+| `--opponent`            | `scripted` | Blue policy:`scripted` or `random`       |
+| `--load`                | —           | Path to a `.zip` checkpoint to resume from |
+| `--eval-interval`       | 10 000       | Evaluate vs random every N actor steps       |
+| `--checkpoint-interval` | 50 000       | Save checkpoint every N actor steps          |
 
 ---
 
@@ -413,15 +413,15 @@ See [Algorithms → Minimax Exploiter](#minimax-exploiter-minimax_exploiterpy) a
 
 Key arguments (shared by both `league` and `exploiter` subcommands):
 
-| Argument                    | Default  | Description                                       |
-| --------------------------- | -------- | ------------------------------------------------- |
-| `--alpha`                 | 0.05     | Minimax reward mixing coefficient                 |
-| `--gamma`                 | 0.995    | Discount factor in the Minimax reward term        |
-| `--v-shift`               | 25.0     | Shift V_main so the bonus is always ≤ 0          |
-| `--n-envs`                | 8        | Parallel envs for PPO rollout collection          |
-| `--n-steps`               | 2048     | Steps per env per PPO rollout                     |
-| `--ppo-batch-size`        | 64       | PPO mini-batch size                               |
-| `--convergence-win-rate`  | 0.85     | Win-rate threshold to declare exploiter converged |
+| Argument                   | Default | Description                                       |
+| -------------------------- | ------- | ------------------------------------------------- |
+| `--alpha`                | 0.05    | Minimax reward mixing coefficient                 |
+| `--gamma`                | 0.995   | Discount factor in the Minimax reward term        |
+| `--v-shift`              | 25.0    | Shift V_main so the bonus is always ≤ 0          |
+| `--n-envs`               | 8       | Parallel envs for PPO rollout collection          |
+| `--n-steps`              | 2048    | Steps per env per PPO rollout                     |
+| `--ppo-batch-size`       | 64      | PPO mini-batch size                               |
+| `--convergence-win-rate` | 0.85    | Win-rate threshold to declare exploiter converged |
 
 ---
 
@@ -431,16 +431,16 @@ See [Algorithms → Multiprocess League Training](#multiprocess-league-training-
 
 Key arguments:
 
-| Argument                    | Default     | Description                                    |
-| --------------------------- | ----------- | ---------------------------------------------- |
-| `--total-main-steps`      | 200 000 000 | Total RNaD actor steps                         |
-| `--exploiter-interval`    | 100 000     | Actor steps between exploiter launches         |
-| `--exploiter-max-steps`   | 20 000      | Max steps per exploiter run                    |
-| `--exploiter-win-target`  | 0.9         | Exploiter stops early at this win-rate         |
-| `--population-size`       | 3           | Number of past RNaD snapshots kept             |
-| `--rnad-weight`           | 0.7         | Sampling weight for RNaD snapshot slots        |
-| `--exploiter-weight`      | 0.3         | Sampling weight for the exploiter slot         |
-| `--snapshot-interval`     | 100 000     | Actor steps between RNaD population snapshots  |
+| Argument                   | Default     | Description                                   |
+| -------------------------- | ----------- | --------------------------------------------- |
+| `--total-main-steps`     | 200 000 000 | Total RNaD actor steps                        |
+| `--exploiter-interval`   | 100 000     | Actor steps between exploiter launches        |
+| `--exploiter-max-steps`  | 20 000      | Max steps per exploiter run                   |
+| `--exploiter-win-target` | 0.9         | Exploiter stops early at this win-rate        |
+| `--population-size`      | 3           | Number of past RNaD snapshots kept            |
+| `--rnad-weight`          | 0.7         | Sampling weight for RNaD snapshot slots       |
+| `--exploiter-weight`     | 0.3         | Sampling weight for the exploiter slot        |
+| `--snapshot-interval`    | 100 000     | Actor steps between RNaD population snapshots |
 
 ---
 
@@ -503,15 +503,15 @@ python animate.py ppo --run runs/... --fps 3 --episodes 5
 
 #### All arguments
 
-| Argument            | Default       | Description                                                                            |
-| ------------------- | ------------- | -------------------------------------------------------------------------------------- |
-| `--run`           | —            | Path to run directory; loads `best_model.pt/.zip`, falls back to `final_model.pt/.zip` |
-| `--model`         | —            | Direct path to a `.pt` or `.zip` file                                                |
+| Argument            | Default       | Description                                                                                             |
+| ------------------- | ------------- | ------------------------------------------------------------------------------------------------------- |
+| `--run`           | —            | Path to run directory; loads `best_model.pt/.zip`, falls back to `final_model.pt/.zip`              |
+| `--model`         | —            | Direct path to a `.pt` or `.zip` file                                                               |
 | `--mode`          | `self_play` | `self_play`: both sides use trained policy (R-NaD only). `vs_random` / `vs_scripted`: Red=trained |
-| `--fps`           | 5             | Pygame frames per second                                                               |
-| `--episodes`      | 0 (∞)        | Episodes to play before exiting                                                        |
-| `--deterministic` | off           | Use argmax policy instead of sampling                                                  |
-| `--device`        | `cpu`       | Torch device                                                                           |
+| `--fps`           | 5             | Pygame frames per second                                                                                |
+| `--episodes`      | 0 (∞)        | Episodes to play before exiting                                                                         |
+| `--deterministic` | off           | Use argmax policy instead of sampling                                                                   |
+| `--device`        | `cpu`       | Torch device                                                                                            |
 
 Close the window or press `Ctrl+C` to stop. A summary (mean reward, win rate) is printed at the end.
 
