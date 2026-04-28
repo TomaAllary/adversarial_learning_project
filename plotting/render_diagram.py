@@ -28,7 +28,7 @@ def B(y): return y - BH / 2
 
 def stacked_box(ax, x, y, label, sublabel, color, stacked=False):
     n_cards = 3
-    card_shift = 0.13
+    card_shift = 0.07
     if stacked:
         for i in range(n_cards - 1, 0, -1):
             shift = i * card_shift
@@ -76,15 +76,15 @@ _by = B(FROZEN_Y) - _BP
 _bw = R(MAIN_X) - L(POOL_X) + 2 * _BP
 _bh = T(POOL_Y)  - B(FROZEN_Y) + 2 * _BP
 
-_SP = 0.15  # extra margin so the dashed stroke isn't clipped
+_SP = 0.18  # extra margin so the dashed stroke isn't clipped
 ax.set_xlim(_bx - _SP, _bx + _bw + _SP)
 ax.set_ylim(_by - _SP, _by + _bh + _SP)
 
 outer = FancyBboxPatch(
     (_bx, _by), _bw, _bh,
     boxstyle="round,pad=0.1",
-    linewidth=2, edgecolor="#888888", facecolor="#fafafa",
-    linestyle="--", zorder=0,
+    linewidth=2.2, edgecolor="#666666", facecolor="#fafafa",
+    linestyle=(0, (6, 3)), zorder=0,
 )
 ax.add_patch(outer)
 
