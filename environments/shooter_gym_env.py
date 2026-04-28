@@ -79,10 +79,12 @@ class ShooterGymEnv(gymnasium.Env):
         opponent: Union[str, Callable] = "random",
         render_mode: Optional[str] = None,
         fps: int = 10,
+        agent_color: str = "red",
     ):
         super().__init__()
         self.self_play   = self_play
         self.render_mode = render_mode
+        self._agent_color = agent_color  # "red" or "blue" (single-agent mode only)
 
         self._env = ShooterEnvironment(render_mode=render_mode, fps=fps)
 
@@ -133,7 +135,9 @@ class ShooterGymEnv(gymnasium.Env):
         if self.render_mode == "human":
             self._env.render()
 
-        # Player 0 (red) always acts first
+        # Return the acting agent's initial observation
+        if not self.self_play and self._agent_color == "blue":
+            return self._last_blue_obs.copy(), {}
         return self._last_red_obs.copy(), {}
 
     def step(self, action: int):
@@ -215,26 +219,42 @@ class ShooterGymEnv(gymnasium.Env):
     # ── single-agent step ─────────────────────────────────────────────────────
 
     def _step_single_agent(self, action: int):
-        blue_obs    = self._last_blue_obs if self._last_blue_obs is not None \
+        if self._agent_color == "blue":
+            # Agent controls Blue; opponent controls Red.
+            red_obs = self._last_red_obs if self._last_red_obs is not None \
                       else np.zeros(OBS_DIM, dtype=np.float32)
-        blue_action = int(self._opponent_fn(blue_obs))
+            red_action = int(self._opponent_fn(red_obs))
 
-        obs_dict, rew_dict, terms, truncs, _ = self._env.step(
-            {"red_0": action, "blue_0": blue_action}
-        )
+            obs_dict, rew_dict, terms, truncs, _ = self._env.step(
+                {"red_0": red_action, "blue_0": action}
+            )
 
-        r_red = float(rew_dict.get("red_0", 0.0))
+            r = float(rew_dict.get("blue_0", 0.0))
+            agent_obs = obs_dict["blue_0"].copy()
+        else:
+            # Agent controls Red (default); opponent controls Blue.
+            blue_obs = self._last_blue_obs if self._last_blue_obs is not None \
+                       else np.zeros(OBS_DIM, dtype=np.float32)
+            blue_action = int(self._opponent_fn(blue_obs))
+
+            obs_dict, rew_dict, terms, truncs, _ = self._env.step(
+                {"red_0": action, "blue_0": blue_action}
+            )
+
+            r = float(rew_dict.get("red_0", 0.0))
+            agent_obs = obs_dict["red_0"].copy()
 
         terminated = bool(any(terms.values())) if terms else False
         truncated  = bool(any(truncs.values())) if truncs else False
 
+        self._last_red_obs  = obs_dict["red_0"].copy()
         self._last_blue_obs = obs_dict["blue_0"].copy()
-        self._should_render = True  # env always steps in single-agent mode
+        self._should_render = True
 
         if terminated or truncated:
             self._done = True
 
-        return obs_dict["red_0"].copy(), r_red, terminated, truncated, {}
+        return agent_obs, r, terminated, truncated, {}
 
     def set_render_stats(self, red_wins: int, blue_wins: int, episodes: int):
         """Push cumulative episode stats into the renderer's HUD."""
