@@ -58,7 +58,51 @@
             "type": "debugpy",
             "request": "launch",
             "program": "./minimax_exploiter.py",
-            "args": ["exploiter", "--main-checkpoint", "runs/rnad_5/checkpoints/model_step_0004000.pt", "--total-exploiter-steps", "800_000"],
+            "args": [
+                "exploiter", 
+                "--main-checkpoint", 
+                "runs/rnad_5/checkpoints/model_step_0004000.pt", 
+                "--total-exploiter-steps", "1_000_000",
+                "--run-name", "exploiter_rnad_400"],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Evaluate model",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "./evaluate_checkpoints.py",
+            "args": [
+                "--run-dir", "runs/rnad_1", 
+                "--out", "runs/rnad_1/eval_results_additional_exploiters.json", 
+                "--episodes", "200", 
+                "--device", "cpu", 
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Plot win-rate",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "./plotting/plot_winrate.py",
+            "args": [
+                "runs/evals/league_0pc_eval_results.json", 
+                "--title", "RNaD",
+                "--ratio", "1:1", 
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Plot exploiters",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "./plotting/plot_exploiter_curves.py",
+            "args": [
+                "--title", "PPO Exploiters Training for Different Checkpoints",
+                "--ratio", "2:1", 
+            ],
             "console": "integratedTerminal",
             "justMyCode": true
         },
