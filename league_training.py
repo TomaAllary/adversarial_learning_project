@@ -459,6 +459,7 @@ def _exploiter_worker(
                     f"win_rate={final_win_rate:.0%}  "
                     f"elapsed={elapsed:.1f}min"
                 )
+                conn.send(("progress", gen_id, n, final_win_rate))
                 if final_win_rate >= config.exploiter_win_target:
                     print(
                         f"[exploiter gen {gen_id}] ✓ reached "
@@ -491,7 +492,7 @@ def _exploiter_worker(
         model.save(zip_stem)
         zip_path = zip_stem + ".zip"
 
-        conn.send(("done", gen_id, final_win_rate, zip_path))
+        conn.send(("done", gen_id, final_win_rate, model.num_timesteps, zip_path))
 
     conn.close()
 
@@ -633,40 +634,46 @@ def train_league(config: LeagueConfig):
             )
 
         # ── 4. Poll exploiter results (non-blocking) ──────────────────────────
-        if exploiter_busy and parent_conn.poll():
+        while exploiter_busy and parent_conn.poll():
             resp = parent_conn.recv()
-            if resp[0] == "done":
-                _, recv_gen, win_rate, zip_path = resp
-                exploiter_busy = False
+            if resp[0] == "progress":
+                _, recv_gen, expl_steps, win_rate = resp
+                writer.add_scalar("exploiter/win_rate", win_rate, actor_steps)
+                continue
+            if resp[0] != "done":
+                continue
+            _, recv_gen, win_rate, expl_steps_used, zip_path = resp
+            exploiter_busy = False
 
-                # Inject exploiter into population (loads the .zip from disk)
-                population.set_exploiter(zip_path)
+            # Inject exploiter into population (loads the .zip from disk)
+            population.set_exploiter(zip_path)
 
-                # Log the *post-training* win-rate — key convergence metric
-                writer.add_scalar("exploiter/final_win_rate",  win_rate, recv_gen)
-                writer.add_scalar("exploiter/win_rate_vs_time", win_rate, actor_steps)
-                writer.flush()
+            # Log the *post-training* win-rate — key convergence metric
+            writer.add_scalar("exploiter/final_win_rate",  win_rate,       recv_gen)
+            writer.add_scalar("exploiter/win_rate_vs_time", win_rate,      actor_steps)
+            writer.add_scalar("exploiter/training_steps",  expl_steps_used, recv_gen)
+            writer.flush()
 
-                record = {
-                    "gen":         recv_gen,
-                    "win_rate":    win_rate,
-                    "actor_steps": actor_steps,
-                }
-                exploiter_history.append(record)
+            record = {
+                "gen":         recv_gen,
+                "win_rate":    win_rate,
+                "actor_steps": actor_steps,
+            }
+            exploiter_history.append(record)
 
-                print(
-                    f"\n  [exploiter gen {recv_gen}] DONE  "
-                    f"win_rate={win_rate:.0%}  "
-                    f"(main actor_steps={actor_steps:,})\n"
-                )
+            print(
+                f"\n  [exploiter gen {recv_gen}] DONE  "
+                f"win_rate={win_rate:.0%}  "
+                f"(main actor_steps={actor_steps:,})\n"
+            )
 
-                # Save running history
-                with open(run_dir / "exploiter_history.json", "w") as f:
-                    json.dump(exploiter_history, f, indent=2)
+            # Save running history
+            with open(run_dir / "exploiter_history.json", "w") as f:
+                json.dump(exploiter_history, f, indent=2)
 
-                # Save current RNaD checkpoint alongside
-                ckpt_path = run_dir / f"rnad_at_exploiter_gen{recv_gen:04d}.pt"
-                main_model.save(str(ckpt_path))
+            # Save current RNaD checkpoint alongside
+            ckpt_path = run_dir / f"rnad_at_exploiter_gen{recv_gen:04d}.pt"
+            main_model.save(str(ckpt_path))
 
         # ── 5. Launch exploiter if interval reached and worker idle ───────────
         ready_for_exploiter = (
@@ -700,16 +707,21 @@ def train_league(config: LeagueConfig):
     # Wait for any in-flight exploiter
     if exploiter_busy:
         print("Waiting for in-flight exploiter to finish …")
-        resp = parent_conn.recv()
-        if resp[0] == "done":
-            _, recv_gen, win_rate, zip_path = resp
-            population.set_exploiter(zip_path)
-            print(f"  Exploiter gen {recv_gen} finished: win_rate={win_rate:.0%}")
-            writer.add_scalar("exploiter/final_win_rate", win_rate, recv_gen)
-            exploiter_history.append({
-                "gen": recv_gen, "win_rate": win_rate,
-                "actor_steps": main_model.actor_steps,
-            })
+        while True:
+            resp = parent_conn.recv()
+            if resp[0] == "progress":
+                continue
+            if resp[0] == "done":
+                _, recv_gen, win_rate, expl_steps_used, zip_path = resp
+                population.set_exploiter(zip_path)
+                print(f"  Exploiter gen {recv_gen} finished: win_rate={win_rate:.0%}")
+                writer.add_scalar("exploiter/final_win_rate",  win_rate,        recv_gen)
+                writer.add_scalar("exploiter/training_steps",  expl_steps_used, recv_gen)
+                exploiter_history.append({
+                    "gen": recv_gen, "win_rate": win_rate,
+                    "actor_steps": main_model.actor_steps,
+                })
+                break
 
     # Shut down worker
     parent_conn.send(("quit",))
