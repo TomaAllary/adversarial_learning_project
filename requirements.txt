@@ -9,3 +9,4 @@ tqdm
 matplotlib
 gymnasium
 stable-baselines3>=2.3.0
+scipy
