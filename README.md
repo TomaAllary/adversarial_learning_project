@@ -235,6 +235,9 @@ python league_training.py --total-main-steps 2_000_000
 # Increase exploiter pressure
 python league_training.py --exploiter-weight 0.4 --rnad-weight 0.6
 
+# Population self-play only (no exploiter): RNaD trains against past snapshots of itself
+python league_training.py --exploiter-interval 999999999
+
 # Quick smoke test
 python league_training.py --total-main-steps 50_000 \
     --exploiter-interval 10000 --exploiter-max-steps 5000
@@ -497,6 +500,10 @@ python animate.py rnad --run runs/... --mode self_play    # both sides: trained 
 python animate.py rnad --run runs/... --mode vs_random    # red=trained, blue=random
 python animate.py rnad --run runs/... --mode vs_scripted  # red=trained, blue=scripted
 
+# Adversary model: red=main model, blue=loaded adversary (.zip or .pt, auto-detected)
+python animate.py rnad --run runs/rnad_experiment_1 --adversary runs/ppo_experiment_1/best_model.zip
+python animate.py ppo  --run runs/ppo_experiment_1  --adversary runs/rnad_experiment_1/best_model.pt
+
 # Slow down for analysis / run only N episodes
 python animate.py ppo --run runs/... --fps 3 --episodes 5
 ```
@@ -508,6 +515,7 @@ python animate.py ppo --run runs/... --fps 3 --episodes 5
 | `--run`           | —            | Path to run directory; loads `best_model.pt/.zip`, falls back to `final_model.pt/.zip`              |
 | `--model`         | —            | Direct path to a `.pt` or `.zip` file                                                               |
 | `--mode`          | `self_play` | `self_play`: both sides use trained policy (R-NaD only). `vs_random` / `vs_scripted`: Red=trained |
+| `--adversary`     | —            | Path to an adversary model (`.zip` for PPO, `.pt` for R-NaD). Overrides `--mode`: Red=main model, Blue=adversary |
 | `--fps`           | 5             | Pygame frames per second                                                                                |
 | `--episodes`      | 0 (∞)        | Episodes to play before exiting                                                                         |
 | `--deterministic` | off           | Use argmax policy instead of sampling                                                                   |
