@@ -24,6 +24,10 @@ Usage
   python animate.py rnad --run runs/... --mode vs_random    # red=trained, blue=random
   python animate.py rnad --run runs/... --mode vs_scripted  # red=trained, blue=scripted
 
+  # Adversary model (overrides --mode)
+  python animate.py rnad --run runs/... --adversary runs/ppo_run/best_model.zip
+  python animate.py ppo  --run runs/... --adversary runs/rnad_run/best_model.pt
+
   # Slow down for analysis / run only N episodes
   python animate.py ppo --run runs/... --fps 3 --episodes 5
 """
@@ -63,6 +67,11 @@ def parse_args():
         sp.add_argument("--deterministic", action="store_true",
                         help="Use argmax policy instead of sampling")
         sp.add_argument("--device", type=str, default="cpu")
+        sp.add_argument(
+            "--adversary", type=str, default=None, metavar="PATH",
+            help="Path to an adversary model (.zip for PPO, .pt for R-NaD). "
+                 "Overrides --mode: red=main model, blue=adversary.",
+        )
 
     rnad = sub.add_parser("rnad", help="Animate an R-NaD model",
                           formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -137,6 +146,28 @@ def load_ppo(args):
     return model
 
 
+# ── adversary loader ─────────────────────────────────────────────────────────
+
+def load_adversary_fn(path: str, device: str):
+    """Return an opponent callable (obs -> action) from a .zip or .pt checkpoint."""
+    p = Path(path)
+    if not p.exists():
+        raise FileNotFoundError(f"Adversary model not found: {p}")
+    if p.suffix == ".zip":
+        from stable_baselines3 import PPO
+        print(f"Loading PPO adversary: {p}")
+        adv = PPO.load(str(p), device=device)
+        return lambda obs: int(adv.predict(obs, deterministic=False)[0])
+    elif p.suffix == ".pt":
+        from rnad import RNaD
+        print(f"Loading R-NaD adversary: {p}")
+        adv = RNaD.load(str(p), env_fn=lambda: ShooterGymEnv(self_play=True), device=device)
+        _mask = np.ones(7, dtype=np.float32)
+        return lambda obs: int(adv.predict(obs, legal_actions=_mask, deterministic=False)[0])
+    else:
+        raise ValueError(f"Unsupported adversary file type '{p.suffix}' — expected .zip or .pt")
+
+
 # ── episode runners ───────────────────────────────────────────────────────────
 
 def run_episode_rnad(env: ShooterGymEnv, model, deterministic: bool) -> dict:
@@ -147,7 +178,7 @@ def run_episode_rnad(env: ShooterGymEnv, model, deterministic: bool) -> dict:
     done       = False
 
     while not done:
-        legal     = env.legal_actions_mask()
+        legal     = env.legal_actions_mask() if hasattr(env, "legal_actions_mask") else np.ones(7, dtype=np.float32)
         action, _ = model.predict(obs, legal_actions=legal, deterministic=deterministic)
         obs, r, term, trunc, _ = env.step(int(action))
         done = term or trunc
@@ -200,7 +231,19 @@ def main():
         "vs_scripted": "scripted",
     }
 
-    if args.algo == "rnad":
+    if args.adversary:
+        adversary_fn = load_adversary_fn(args.adversary, args.device)
+        adv_name     = Path(args.adversary).name
+        if args.algo == "rnad":
+            model       = load_rnad(args)
+            run_episode = lambda env: run_episode_rnad(env, model, args.deterministic)
+        else:
+            model       = load_ppo(args)
+            run_episode = lambda env: run_episode_ppo(env, model, args.deterministic)
+        env       = ShooterGymEnv(self_play=False, opponent=adversary_fn,
+                                  render_mode="human", fps=args.fps)
+        mode_desc = f"vs model (red=trained {args.algo.upper()}, blue={adv_name})"
+    elif args.algo == "rnad":
         model        = load_rnad(args)
         run_episode  = lambda env: run_episode_rnad(env, model, args.deterministic)
         if args.mode == "self_play":
