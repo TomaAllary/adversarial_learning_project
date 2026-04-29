@@ -639,7 +639,7 @@ def train_league(config: LeagueConfig):
             resp = parent_conn.recv()
             if resp[0] == "progress":
                 _, recv_gen, expl_steps, win_rate = resp
-                writer.add_scalar("exploiter/win_rate", win_rate, actor_steps)
+                writer.add_scalar("exploiter/win_rate_during_training", win_rate, actor_steps)
                 continue
             if resp[0] != "done":
                 continue
