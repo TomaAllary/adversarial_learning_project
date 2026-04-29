@@ -238,6 +238,10 @@ python league_training.py --exploiter-weight 0.4 --rnad-weight 0.6
 # Population self-play only (no exploiter): RNaD trains against past snapshots of itself
 python league_training.py --exploiter-interval 999999999
 
+# Exploiter for evaluation only: trains periodically to measure exploitability, but is NOT
+# injected into the population — RNaD trains against past snapshots only
+python league_training.py --no-exploiter-feedback
+
 # Quick smoke test
 python league_training.py --total-main-steps 50_000 \
     --exploiter-interval 10000 --exploiter-max-steps 5000
@@ -444,6 +448,8 @@ Key arguments:
 | `--rnad-weight`          | 0.7         | Sampling weight for RNaD snapshot slots       |
 | `--exploiter-weight`     | 0.3         | Sampling weight for the exploiter slot        |
 | `--snapshot-interval`    | 100 000     | Actor steps between RNaD population snapshots |
+| `--no-exploiter-feedback` | off        | Train exploiter for evaluation only — do not inject it into the population |
+| `--run-dir`              | `runs/league` | Output directory for checkpoints and logs   |
 
 ---
 

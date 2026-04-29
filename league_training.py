@@ -131,6 +131,7 @@ class LeagueConfig:
     v_shift: float = 25.0
 
     # ── Misc ─────────────────────────────────────────────────────────────────
+    exploiter_feedback: bool = True   # if False, exploiter trains for eval only (not injected into population)
     device:  str   = "cpu"
     seed:    int   = 42
     run_dir: str   = "runs/league"
@@ -645,8 +646,9 @@ def train_league(config: LeagueConfig):
             _, recv_gen, win_rate, expl_steps_used, zip_path = resp
             exploiter_busy = False
 
-            # Inject exploiter into population (loads the .zip from disk)
-            population.set_exploiter(zip_path)
+            # Inject exploiter into population (skip if eval-only mode)
+            if config.exploiter_feedback:
+                population.set_exploiter(zip_path)
 
             # Log the *post-training* win-rate — key convergence metric
             writer.add_scalar("exploiter/final_win_rate",  win_rate,       recv_gen)
@@ -805,6 +807,8 @@ def parse_args():
     p.add_argument("--v-shift", type=float, default=25.0)
 
     # ── Misc ─────────────────────────────────────────────────────────────────
+    p.add_argument("--no-exploiter-feedback", action="store_true",
+                   help="Train exploiter for evaluation only — do not inject it into the population")
     p.add_argument("--device",   type=str, default="cpu")
     p.add_argument("--seed",     type=int, default=42)
     p.add_argument("--run-dir",  type=str, default="runs/league")
@@ -841,6 +845,7 @@ if __name__ == "__main__":
         alpha                   = args.alpha,
         gamma                   = args.gamma,
         v_shift                 = args.v_shift,
+        exploiter_feedback      = not args.no_exploiter_feedback,
         device                  = args.device,
         seed                    = args.seed,
         run_dir                 = args.run_dir,
