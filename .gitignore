@@ -415,3 +415,5 @@ runs/
 events.out.tfevents.*
 
 settings.local.json
+
+*.json

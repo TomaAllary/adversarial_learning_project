@@ -71,81 +71,81 @@ EXPLOITER_PAIRS: list[tuple[str, str]] = [
     ("model_step_0220000",  "runs/minimax_exploiter_runs/exploiter_rnad_220_000_no_stop/exploiter_gen01/best_exploiter.zip"),
     ("model_step_0250000",  "runs/minimax_exploiter_runs/exploiter_rnad_250_000_no_stop/exploiter_gen01/best_exploiter.zip"),
     # league
-    ("rnad_at_exploiter_gen0001",  "runs/league_30pc_exploit/exploiter_gen0001/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0002",  "runs/league_30pc_exploit/exploiter_gen0002/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0003",  "runs/league_30pc_exploit/exploiter_gen0003/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0004",  "runs/league_30pc_exploit/exploiter_gen0004/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0005",  "runs/league_30pc_exploit/exploiter_gen0005/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0006",  "runs/league_30pc_exploit/exploiter_gen0006/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0007",  "runs/league_30pc_exploit/exploiter_gen0007/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0008",  "runs/league_30pc_exploit/exploiter_gen0008/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0009",  "runs/league_30pc_exploit/exploiter_gen0009/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0010",  "runs/league_30pc_exploit/exploiter_gen0010/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0011",  "runs/league_30pc_exploit/exploiter_gen0011/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0012",  "runs/league_30pc_exploit/exploiter_gen0012/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0013",  "runs/league_30pc_exploit/exploiter_gen0013/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0014",  "runs/league_30pc_exploit/exploiter_gen0014/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0015",  "runs/league_30pc_exploit/exploiter_gen0015/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0016",  "runs/league_30pc_exploit/exploiter_gen0016/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0017",  "runs/league_30pc_exploit/exploiter_gen0017/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0018",  "runs/league_30pc_exploit/exploiter_gen0018/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0019",  "runs/league_30pc_exploit/exploiter_gen0019/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0020",  "runs/league_30pc_exploit/exploiter_gen0020/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0021",  "runs/league_30pc_exploit/exploiter_gen0021/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0022",  "runs/league_30pc_exploit/exploiter_gen0022/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0023",  "runs/league_30pc_exploit/exploiter_gen0023/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0024",  "runs/league_30pc_exploit/exploiter_gen0024/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0025",  "runs/league_30pc_exploit/exploiter_gen0025/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0026",  "runs/league_30pc_exploit/exploiter_gen0026/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0027",  "runs/league_30pc_exploit/exploiter_gen0027/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0028",  "runs/league_30pc_exploit/exploiter_gen0028/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0029",  "runs/league_30pc_exploit/exploiter_gen0029/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0030",  "runs/league_30pc_exploit/exploiter_gen0030/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0031",  "runs/league_30pc_exploit/exploiter_gen0031/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0032",  "runs/league_30pc_exploit/exploiter_gen0032/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0033",  "runs/league_30pc_exploit/exploiter_gen0033/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0034",  "runs/league_30pc_exploit/exploiter_gen0034/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0035",  "runs/league_30pc_exploit/exploiter_gen0035/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0036",  "runs/league_30pc_exploit/exploiter_gen0036/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0037",  "runs/league_30pc_exploit/exploiter_gen0037/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0038",  "runs/league_30pc_exploit/exploiter_gen0038/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0039",  "runs/league_30pc_exploit/exploiter_gen0039/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0040",  "runs/league_30pc_exploit/exploiter_gen0040/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0041",  "runs/league_30pc_exploit/exploiter_gen0041/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0042",  "runs/league_30pc_exploit/exploiter_gen0042/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0043",  "runs/league_30pc_exploit/exploiter_gen0043/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0044",  "runs/league_30pc_exploit/exploiter_gen0044/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0045",  "runs/league_30pc_exploit/exploiter_gen0045/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0046",  "runs/league_30pc_exploit/exploiter_gen0046/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0047",  "runs/league_30pc_exploit/exploiter_gen0047/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0048",  "runs/league_30pc_exploit/exploiter_gen0048/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0049",  "runs/league_30pc_exploit/exploiter_gen0049/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0050",  "runs/league_30pc_exploit/exploiter_gen0050/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0051",  "runs/league_30pc_exploit/exploiter_gen0051/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0052",  "runs/league_30pc_exploit/exploiter_gen0052/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0053",  "runs/league_30pc_exploit/exploiter_gen0053/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0054",  "runs/league_30pc_exploit/exploiter_gen0054/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0055",  "runs/league_30pc_exploit/exploiter_gen0055/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0056",  "runs/league_30pc_exploit/exploiter_gen0056/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0057",  "runs/league_30pc_exploit/exploiter_gen0057/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0058",  "runs/league_30pc_exploit/exploiter_gen0058/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0059",  "runs/league_30pc_exploit/exploiter_gen0059/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0060",  "runs/league_30pc_exploit/exploiter_gen0060/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0061",  "runs/league_30pc_exploit/exploiter_gen0061/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0062",  "runs/league_30pc_exploit/exploiter_gen0062/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0063",  "runs/league_30pc_exploit/exploiter_gen0063/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0064",  "runs/league_30pc_exploit/exploiter_gen0064/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0065",  "runs/league_30pc_exploit/exploiter_gen0065/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0066",  "runs/league_30pc_exploit/exploiter_gen0066/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0067",  "runs/league_30pc_exploit/exploiter_gen0067/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0068",  "runs/league_30pc_exploit/exploiter_gen0068/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0069",  "runs/league_30pc_exploit/exploiter_gen0069/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0070",  "runs/league_30pc_exploit/exploiter_gen0070/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0071",  "runs/league_30pc_exploit/exploiter_gen0071/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0072",  "runs/league_30pc_exploit/exploiter_gen0072/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0073",  "runs/league_30pc_exploit/exploiter_gen0073/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0074",  "runs/league_30pc_exploit/exploiter_gen0074/final_exploiter.zip"),
-    ("rnad_at_exploiter_gen0075",  "runs/league_30pc_exploit/exploiter_gen0075/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0001",  "exploiter_gen0001/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0002",  "exploiter_gen0002/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0003",  "exploiter_gen0003/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0004",  "exploiter_gen0004/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0005",  "exploiter_gen0005/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0006",  "exploiter_gen0006/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0007",  "exploiter_gen0007/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0008",  "exploiter_gen0008/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0009",  "exploiter_gen0009/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0010",  "exploiter_gen0010/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0011",  "exploiter_gen0011/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0012",  "exploiter_gen0012/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0013",  "exploiter_gen0013/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0014",  "exploiter_gen0014/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0015",  "exploiter_gen0015/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0016",  "exploiter_gen0016/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0017",  "exploiter_gen0017/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0018",  "exploiter_gen0018/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0019",  "exploiter_gen0019/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0020",  "exploiter_gen0020/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0021",  "exploiter_gen0021/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0022",  "exploiter_gen0022/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0023",  "exploiter_gen0023/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0024",  "exploiter_gen0024/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0025",  "exploiter_gen0025/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0026",  "exploiter_gen0026/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0027",  "exploiter_gen0027/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0028",  "exploiter_gen0028/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0029",  "exploiter_gen0029/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0030",  "exploiter_gen0030/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0031",  "exploiter_gen0031/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0032",  "exploiter_gen0032/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0033",  "exploiter_gen0033/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0034",  "exploiter_gen0034/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0035",  "exploiter_gen0035/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0036",  "exploiter_gen0036/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0037",  "exploiter_gen0037/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0038",  "exploiter_gen0038/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0039",  "exploiter_gen0039/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0040",  "exploiter_gen0040/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0041",  "exploiter_gen0041/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0042",  "exploiter_gen0042/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0043",  "exploiter_gen0043/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0044",  "exploiter_gen0044/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0045",  "exploiter_gen0045/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0046",  "exploiter_gen0046/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0047",  "exploiter_gen0047/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0048",  "exploiter_gen0048/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0049",  "exploiter_gen0049/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0050",  "exploiter_gen0050/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0051",  "exploiter_gen0051/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0052",  "exploiter_gen0052/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0053",  "exploiter_gen0053/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0054",  "exploiter_gen0054/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0055",  "exploiter_gen0055/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0056",  "exploiter_gen0056/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0057",  "exploiter_gen0057/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0058",  "exploiter_gen0058/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0059",  "exploiter_gen0059/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0060",  "exploiter_gen0060/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0061",  "exploiter_gen0061/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0062",  "exploiter_gen0062/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0063",  "exploiter_gen0063/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0064",  "exploiter_gen0064/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0065",  "exploiter_gen0065/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0066",  "exploiter_gen0066/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0067",  "exploiter_gen0067/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0068",  "exploiter_gen0068/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0069",  "exploiter_gen0069/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0070",  "exploiter_gen0070/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0071",  "exploiter_gen0071/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0072",  "exploiter_gen0072/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0073",  "exploiter_gen0073/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0074",  "exploiter_gen0074/final_exploiter.zip"),
+    ("rnad_at_exploiter_gen0075",  "exploiter_gen0075/final_exploiter.zip"),
 
 ]
 
@@ -167,8 +167,8 @@ from minimax_exploiter import (
 # Helpers
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _load_rnad(path: Path, hidden_layers: tuple, device: str) -> PolicyNetwork:
-    """Load a RNaD .pt checkpoint → PolicyNetwork."""
+def _load_rnad(path: Path, hidden_layers: tuple, device: str):
+    """Load a RNaD .pt checkpoint → (PolicyNetwork, learner_steps, actor_steps)."""
     ckpt = torch.load(path, map_location="cpu", weights_only=False)
     # Support both bare state-dicts and wrapped {"params": ...} dicts
     state_dict = ckpt.get("params", ckpt) if isinstance(ckpt, dict) else ckpt
@@ -179,18 +179,23 @@ def _load_rnad(path: Path, hidden_layers: tuple, device: str) -> PolicyNetwork:
     )
     net.load_state_dict(state_dict)
     net.eval()
-    return net
+    learner_steps = ckpt.get("learner_steps") if isinstance(ckpt, dict) else None
+    actor_steps   = ckpt.get("actor_steps")   if isinstance(ckpt, dict) else None
+    return net, learner_steps, actor_steps
 
 
 def _load_agent(path: Path, hidden_layers: tuple, device: str):
-    """Return (agent, kind) where kind is 'rnad' or 'ppo'."""
+    """Return (agent, kind, learner_steps, actor_steps)."""
     if path.suffix == ".pt":
-        net = _load_rnad(path, hidden_layers, device)
+        net, learner_steps, actor_steps = _load_rnad(path, hidden_layers, device)
         legal = torch.ones(1, N_ACTIONS, dtype=torch.float32,
                            device=torch.device(device))
-        return _RNaDMainAgentAdapter(net, device, legal), "rnad"
+        return _RNaDMainAgentAdapter(net, device, legal), "rnad", learner_steps, actor_steps
     elif path.suffix == ".zip":
-        return PPOMainAgent.from_checkpoint(str(path), device=device), "ppo"
+        # Actor steps are encoded in the filename (e.g. ppo_step_00050000 → 50000)
+        m = re.search(r"(\d+)$", path.stem)
+        actor_steps = int(m.group(1)) if m else None
+        return PPOMainAgent.from_checkpoint(str(path), device=device), "ppo", None, actor_steps
     else:
         raise ValueError(f"Unknown checkpoint extension: {path.suffix}")
 
@@ -240,7 +245,7 @@ def _scripted_opponent_fn() -> Callable:
 # Discovery
 # ─────────────────────────────────────────────────────────────────────────────
 
-def discover_checkpoints(run_dir: Path) -> list[Path]:
+def discover_checkpoints(run_dir: Path, max_gen: int | None = None) -> list[Path]:
     """
     Find all evaluable checkpoints under run_dir.
 
@@ -249,8 +254,13 @@ def discover_checkpoints(run_dir: Path) -> list[Path]:
     """
     ckpts: list[Path] = []
 
-    # League checkpoints
-    ckpts += sorted((run_dir).glob("rnad_at_exploiter_gen*.pt"))
+    # League checkpoints (optionally capped at max_gen)
+    for p in sorted(run_dir.glob("rnad_at_exploiter_gen*.pt")):
+        if max_gen is not None:
+            m = re.search(r"gen(\d+)", p.stem)
+            if m and int(m.group(1)) > max_gen:
+                continue
+        ckpts.append(p)
 
     # PPO checkpoints
     ckpts += sorted((run_dir / "checkpoints").glob("ppo_step_*.zip"))
@@ -280,7 +290,7 @@ def run_evaluation(args) -> dict:
     }
 
     # Discover checkpoints
-    checkpoints = discover_checkpoints(run_dir)
+    checkpoints = discover_checkpoints(run_dir, max_gen=args.max_gen)
     if not checkpoints:
         raise RuntimeError(
             f"No checkpoints found in {run_dir}.\n"
@@ -305,13 +315,18 @@ def run_evaluation(args) -> dict:
 
         # Load subject agent
         try:
-            agent, kind = _load_agent(ckpt_path, hidden_layers, device)
+            agent, kind, learner_steps, actor_steps = _load_agent(ckpt_path, hidden_layers, device)
         except Exception as e:
             print(f"  ERROR loading checkpoint: {e}")
             results[stem] = {"error": str(e)}
             continue
 
-        entry: dict = {"kind": kind, "path": str(ckpt_path)}
+        entry: dict = {
+            "kind":          kind,
+            "path":          str(ckpt_path),
+            "learner_steps": learner_steps,
+            "actor_steps":   actor_steps,
+        }
 
         # ── vs random ─────────────────────────────────────────────────────────
         entry["vs_random"] = _evaluate(agent, random_fn, num_episodes)
@@ -327,11 +342,23 @@ def run_evaluation(args) -> dict:
             f"  mean_reward={entry['vs_scripted']['mean_reward']:+.2f}"
         )
 
-        # ── vs exploiter (if defined for this checkpoint) ─────────────────────
+        # ── vs exploiter ──────────────────────────────────────────────────────
+        # Resolve: explicit EXPLOITER_PAIRS first, then auto-discover from stem
+        expl_path = None
         if stem in exploiter_lookup:
-            expl_path = Path(exploiter_lookup[stem])
+            _candidate = run_dir / exploiter_lookup[stem]
+            expl_path = _candidate if _candidate.exists() else Path(exploiter_lookup[stem])
+        else:
+            m = re.search(r"rnad_at_exploiter_(gen\d+)", stem)
+            if m:
+                gen_dir = run_dir / f"exploiter_{m.group(1)}"
+                found = sorted(gen_dir.glob("final_exploiter.*"))
+                if found:
+                    expl_path = found[0]
+
+        if expl_path is not None:
             try:
-                expl_agent = PPOMainAgent.from_checkpoint(str(expl_path), device=device)
+                expl_agent, _, _, _ = _load_agent(expl_path, hidden_layers, device)
                 expl_fn    = lambda obs, _a=expl_agent: _a.get_action(obs)
                 entry["vs_exploiter"] = _evaluate(agent, expl_fn, num_episodes)
                 entry["exploiter_path"] = str(expl_path)
@@ -364,13 +391,15 @@ def parse_args():
     )
     p.add_argument("--run-dir",       type=str, required=True,
                    help="Path to the league run folder")
-    p.add_argument("--out",           type=str, default="eval_results.json",
-                   help="Output JSON file path")
+    p.add_argument("--out",           type=str, default=None,
+                   help="Output JSON file path (default: eval_<run_dir_name>.json)")
     p.add_argument("--episodes",      type=int, default=200,
                    help="Episodes per opponent per checkpoint")
     p.add_argument("--hidden-layers", type=int, nargs="+", default=[256, 256],
                    help="PolicyNetwork hidden layer widths (must match training)")
     p.add_argument("--device",        type=str, default="cpu")
+    p.add_argument("--max-gen",       type=int, default=None,
+                   help="Only evaluate rnad_at_exploiter_gen checkpoints up to this generation")
     return p.parse_args()
 
 
@@ -378,7 +407,7 @@ if __name__ == "__main__":
     args   = parse_args()
     results = run_evaluation(args)
 
-    out_path = Path(args.out)
+    out_path = Path(args.out) if args.out else Path("output/evaluation") / f"eval_{Path(args.run_dir).name}.json"
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with open(out_path, "w") as f:
         json.dump(results, f, indent=2)

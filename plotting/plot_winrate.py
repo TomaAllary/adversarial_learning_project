@@ -19,7 +19,7 @@ LABELS = {
     "vs_exploiter": "vs Exploiter",
 }
 
-SMOOTH_WINDOW = 25
+SMOOTH_WINDOW = 10
 
 
 def smooth(y, window):
@@ -28,13 +28,13 @@ def smooth(y, window):
     return uniform_filter1d(y, size=window, mode="nearest").astype(float)
 
 
-def plot(json_path, ratio="2:1", title=None):
+def plot(json_path, ratio="2:1", title=None, save_path=None):
     with open(json_path) as f:
         data = json.load(f)
 
     series = {k: {"x": [], "y": []} for k in COLORS}
     for entry in data.values():
-        x = entry.get("actor_step") or entry.get("step")
+        x = entry.get("actor_steps") or entry.get("actor_step") or entry.get("step")
         if x is None:
             continue
         for key in COLORS:
@@ -58,7 +58,7 @@ def plot(json_path, ratio="2:1", title=None):
         ys = np.array([p[1] for p in pairs], dtype=float)
         ys_smooth = smooth(ys, SMOOTH_WINDOW)
 
-        ax.plot(xs, ys, color=color, alpha=0.18, linewidth=0.8, zorder=2)
+        ax.plot(xs, ys, color=color, alpha=0.5, linewidth=0.8, zorder=2)
         line, = ax.plot(xs, ys_smooth, color=color, linewidth=2.2, alpha=0.95,
                         solid_capstyle="round", zorder=3, label=LABELS[key])
         handles.append(line)
@@ -73,9 +73,9 @@ def plot(json_path, ratio="2:1", title=None):
         return str(int(val))
     ax.xaxis.set_major_formatter(mticker.FuncFormatter(fmt_x))
 
-    ax.set_xlabel("Actor Steps", color="#383838", fontsize=10, labelpad=8)
-    ax.set_ylabel("Win Rate",    color="#383838", fontsize=10, labelpad=8)
-    ax.tick_params(colors="#6A7485", labelsize=9)
+    ax.set_xlabel("Actor Steps", color="black", fontsize=13, labelpad=8)
+    ax.set_ylabel("Win Rate",    color="black", fontsize=13, labelpad=8)
+    ax.tick_params(colors="black", labelsize=12)
     for spine in ax.spines.values():
         spine.set_edgecolor("#2A3245")
 
@@ -83,20 +83,30 @@ def plot(json_path, ratio="2:1", title=None):
     ax.grid(axis="x", color="#2A3245", linewidth=0.4, linestyle=":",  zorder=1)
 
     run_title = title or Path(json_path).stem.replace("_", " ").title()
-    ax.set_title(run_title, color="#383838", fontsize=12, fontweight="semibold", pad=12)
+    ax.set_title(run_title, color="black", fontsize=16, fontweight="semibold", pad=12)
 
-    ax.legend(handles=handles, frameon=True, framealpha=0.85, labelcolor="#D0D6E2",
-              fontsize=10.5, loc="lower right", handlelength=1.8,
+    ax.legend(handles=handles, frameon=True, framealpha=0.85, labelcolor="black",
+              fontsize=14, loc="lower right", handlelength=1.8,
               handletextpad=0.6, borderpad=0.7)
 
     fig.tight_layout(pad=1.2)
+
+    out = Path(save_path) if save_path else Path("output/plots") / (Path(json_path).stem + ".png")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out, dpi=130, bbox_inches="tight")
+    print(f"Saved to {out}")
+
     plt.show()
 
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser()
-    p.add_argument("json_path")
+    p.add_argument("json_path", help="Filename or full path; bare names resolve from output/evaluation/")
     p.add_argument("--ratio", choices=["1:1", "2:1"], default="2:1")
     p.add_argument("--title", type=str, default=None)
+    p.add_argument("--out",   type=str, default=None, help="Override output PNG path")
     args = p.parse_args()
-    plot(args.json_path, args.ratio, args.title)
+    json_path = Path(args.json_path)
+    if not json_path.exists():
+        json_path = Path("output/evaluation") / json_path
+    plot(json_path, args.ratio, args.title, args.out)
