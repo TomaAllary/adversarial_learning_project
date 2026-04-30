@@ -6,6 +6,21 @@ A research project exploring adversarial multi-agent reinforcement learning in a
 
 ---
 
+<table width="100%">
+<tr>
+<td align="center" width="50%"><img src="readme_images/exploitable_example.gif" alt="Exploitable strategy — generation 5" width="100%"/></td>
+<td align="center" width="50%"><img src="readme_images/nash_example.gif" alt="Near-Nash strategy — generation 200" width="100%"/></td>
+</tr>
+<tr>
+<td align="center" width="50%"><strong>Generation 5 — exploitable.</strong></td>
+<td align="center" width="50%"><strong>Generation 200 — near-Nash.</strong></td>
+</tr>
+</table>
+
+![Steps to Near-Nash Convergence](readme_images/steps_to_threshold.png)
+
+---
+
 ## Table of Contents
 
 - [Environment](#environment)
