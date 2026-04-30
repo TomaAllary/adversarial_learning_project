@@ -1,4 +1,6 @@
-# Adversarial Learning — Tactical Shooter
+# Fast Nash Equilibrium via Adversarial Training
+
+Accelerating Nash Convergence in Competitive Self-Play via Minimax Exploiter-Augmented R-NaD
 
 A research project exploring adversarial multi-agent reinforcement learning in a custom 2D tactical shooter environment. Three training regimes are implemented: **PPO** (Proximal Policy Optimization via [Stable Baselines 3](https://stable-baselines3.readthedocs.io/)) for single-team training against a fixed opponent, **R-NaD** (Regularized Nash Dynamics) for self-play convergence to a Nash equilibrium, and **Minimax Exploiter / League Training** for iterative adversarial improvement.
 
@@ -8,6 +10,7 @@ A research project exploring adversarial multi-agent reinforcement learning in a
 
 - [Environment](#environment)
 - [Algorithms](#algorithms)
+- [Results](#results)
 - [Project Structure](#project-structure)
 - [Setup](#setup)
 - [Training](#training)
@@ -214,18 +217,7 @@ Key hyperparameters (`--alpha`, `--gamma`, `--v-shift`) control the minimax rewa
 
 A concurrent variant where the R-NaD main agent and PPO exploiter train **simultaneously** in separate processes:
 
-```
-MAIN PROCESS                          EXPLOITER PROCESS
-─────────────────────────             ─────────────────────
-RNaD trains continuously              Receives RNaD snapshot
-                                      ↓
-Every snapshot_interval steps:        Trains PPO exploiter
-  → push snapshot to population       ↓
-                                      Returns win_rate + .zip path
-Every exploiter_interval steps:
-  → send weights to exploiter proc
-  → inject result into population
-```
+![League Training Architecture](readme_images/league_diagram.png)
 
 The **population** is a rolling window of past RNaD snapshots (default: last 3) plus the latest trained exploiter. RNaD trains against this mixed population, with configurable sampling weights (default: 70% RNaD snapshots, 30% exploiter). The exploiter is retrained approximately every 100k main-agent actor steps.
 
@@ -257,6 +249,67 @@ A deterministic rule-based opponent used as a training baseline for PPO. It uses
 
 ---
 
+## Results
+
+All experiments use the multiprocess league setup (`league_training.py`) with a Minimax Exploiter trained periodically against a frozen RNaD snapshot. The exploiter win-rate is the primary Nash convergence proxy — a lower win-rate means the main agent is harder to exploit.
+
+### Exploiter Sampling Rate vs. Convergence Speed
+
+Higher exploiter sampling consistently accelerates convergence. Each curve represents how quickly the main agent reaches an 80% win-rate threshold against a freshly-trained exploiter.
+
+![Steps to Near-Nash Convergence](readme_images/steps_to_threshold.png)
+
+At 50% exploiter sampling the agent reaches the threshold in **9.55M** actor steps — nearly half the **17.46M** steps required with no exploiter in the population. The relationship is monotonically decreasing across all tested sampling rates (0%, 10%, 30%, 50%).
+
+### Main Agent Exploitability Over Training
+
+Win rate of a trained exploiter against the main agent, shown for each exploiter sampling condition. Lower final win-rate = more robust (less exploitable) policy.
+
+![Main Agent Exploitability](readme_images/combined_vs_exploiter.png)
+
+All conditions converge to a similarly low exploitability at the end of training, but higher exploiter sampling reaches that regime significantly faster. The 0% condition (vanilla RNaD with no exploiter in the population) is the slowest and most exploitable throughout early training.
+
+### League Win Rates — 50% Exploiter Sampling
+
+Win rates of the main agent against three opponent types throughout a full training run at 50% exploiter sampling.
+
+![League Win Rates - 50% Exploiter Sampling](readme_images/eval_rnad_exploiter_0.5.png)
+
+- **vs Scripted / vs Exploiter (~95%):** The agent quickly learns to dominate both the scripted BFS opponent and the trained exploiter, stabilising above 90% by ~10M steps.
+- **vs Random (~35%):** The plateau against a random opponent reflects step-limit timeouts rather than exploitability. The optimal strategy converges to **corner camping** — a corner combined with a 90° vision cone is geometrically unbeatable, so the random agent rarely eliminates the main agent but also rarely walks into its cone before the episode ends.
+
+### Qualitative Examples
+
+In both clips below, **Red = main agent (R-NaD)**, **Blue = trained exploiter (PPO)**. The exploiter is given full training budget against a frozen snapshot of the main agent at that generation.
+
+<table>
+<tr>
+<td align="center"><img src="readme_images/exploitable_example.gif" alt="Exploitable strategy — generation 5"/></td>
+<td align="center"><img src="readme_images/nash_example.gif" alt="Near-Nash strategy — generation 200"/></td>
+</tr>
+<tr>
+<td align="center"><strong>Generation 5 — exploitable.</strong> The main agent has not yet found a robust strategy; the exploiter (Blue) reliably wins by exploiting predictable movement.</td>
+<td align="center"><strong>Generation 200 — near-Nash.</strong> The main agent has converged to a corner-camping strategy that the exploiter cannot break: the 90° vision cone makes the corner geometrically unbeatable.</td>
+</tr>
+</table>
+
+### Win Rates by Opponent Type — All Conditions
+
+<table>
+<tr>
+<td><img src="readme_images/combined_vs_scripted.png" alt="Combined vs Scripted"/></td>
+<td><img src="readme_images/combined_vs_random.png" alt="Combined vs Random"/></td>
+</tr>
+<tr>
+<td align="center"><em>vs Scripted opponent</em></td>
+<td align="center"><em>vs Random opponent</em></td>
+</tr>
+</table>
+
+Higher exploiter sampling also accelerates win-rate gains against the scripted opponent. The ~35% ceiling against random is consistent across all exploiter sampling conditions, confirming it is an environment artefact (corner strategy + step limit) rather than a training signal.
+
+---
+
 ## Project Structure
 
 ```
@@ -267,6 +320,7 @@ adversarial_learning_project/
 ├── minimax_exploiter.py             # Minimax Exploiter (sequential league)
 ├── league_training.py               # Multiprocess league training
 ├── animate.py                       # Visualise trained PPO or R-NaD models
+├── evaluate_checkpoints.py          # Batch-evaluate all checkpoints in a run folder
 │
 ├── environments/
 │   ├── shooter_env.py               # Core PettingZoo environment
@@ -274,8 +328,15 @@ adversarial_learning_project/
 │   ├── scripted_shooter_agent.py    # Rule-based BFS opponent
 │   └── utils.py                     # BFS pathfinder, helpers
 │
+├── plotting/
+│   ├── plot_winrate.py              # Win-rate curves for a single run
+│   ├── plot_winrates_combined.py    # Overlay win-rate curves across multiple runs
+│   ├── plot_exploiter_curves.py     # Exploiter win-rate per generation
+│   ├── plot_steps_to_threshold.py   # Steps-to-threshold bar chart by sampling rate
+│   ├── reward_loss_over_time.py     # Training reward/loss curves
+│   └── render_diagram.py            # Architecture diagram renderer
+│
 ├── test/                            # PettingZoo API validation tests
-├── plotting/                        # Training metrics visualisation
 │
 ├── runs/                            # Training outputs (gitignored)
 ├── requirements.txt
@@ -428,7 +489,7 @@ Key arguments (shared by both `league` and `exploiter` subcommands):
 | `--n-envs`               | 8       | Parallel envs for PPO rollout collection          |
 | `--n-steps`              | 2048    | Steps per env per PPO rollout                     |
 | `--ppo-batch-size`       | 64      | PPO mini-batch size                               |
-| `--convergence-win-rate` | 0.85    | Win-rate threshold to declare exploiter converged |
+| `--convergence-win-rate` | 1.0     | Win-rate threshold to declare exploiter converged |
 
 ---
 
@@ -516,18 +577,48 @@ python animate.py ppo --run runs/... --fps 3 --episodes 5
 
 #### All arguments
 
-| Argument            | Default       | Description                                                                                             |
-| ------------------- | ------------- | ------------------------------------------------------------------------------------------------------- |
-| `--run`           | —            | Path to run directory; loads `best_model.pt/.zip`, falls back to `final_model.pt/.zip`              |
-| `--model`         | —            | Direct path to a `.pt` or `.zip` file                                                               |
-| `--mode`          | `self_play` | `self_play`: both sides use trained policy (R-NaD only). `vs_random` / `vs_scripted`: Red=trained |
-| `--adversary`     | —            | Path to an adversary model (`.zip` for PPO, `.pt` for R-NaD). Overrides `--mode`: Red=main model, Blue=adversary |
-| `--fps`           | 5             | Pygame frames per second                                                                                |
-| `--episodes`      | 0 (∞)        | Episodes to play before exiting                                                                         |
-| `--deterministic` | off           | Use argmax policy instead of sampling                                                                   |
-| `--device`        | `cpu`       | Torch device                                                                                            |
+| Argument            | R-NaD default  | PPO default    | Description                                                                               |
+| ------------------- | -------------- | -------------- | ----------------------------------------------------------------------------------------- |
+| `--run`           | —             | —             | Path to run directory; loads `best_model.pt/.zip`, falls back to `final_model.pt/.zip` |
+| `--model`         | —             | —             | Direct path to a `.pt` or `.zip` file                                                  |
+| `--mode`          | `self_play`  | `vs_scripted` | R-NaD: `self_play` / `vs_random` / `vs_scripted`. PPO: `vs_random` / `vs_scripted` only |
+| `--adversary`     | —             | —             | Path to an adversary model (`.zip` for PPO, `.pt` for R-NaD). Overrides `--mode`       |
+| `--fps`           | 5              | 5              | Pygame frames per second                                                                  |
+| `--episodes`      | 0 (∞)         | 0 (∞)         | Episodes to play before exiting                                                           |
+| `--deterministic` | off            | off            | Use argmax policy instead of sampling                                                     |
+| `--device`        | `cpu`        | `cpu`        | Torch device                                                                              |
 
 Close the window or press `Ctrl+C` to stop. A summary (mean reward, win rate) is printed at the end.
+
+---
+
+### Evaluate Checkpoints — `evaluate_checkpoints.py`
+
+Batch-evaluates every checkpoint in a run folder against three opponents (random, scripted, and a paired trained exploiter) and writes results to a JSON file.
+
+```bash
+python evaluate_checkpoints.py \
+    --run-dir  runs/my_league_run \
+    --out      results.json \
+    --episodes 200 \
+    --device   cpu
+```
+
+Checkpoint discovery is automatic:
+- **League (R-NaD):** `runs/my_league_run/rnad_at_exploiter_gen*.pt`
+- **PPO:** `runs/my_league_run/checkpoints/ppo_step_*.zip`
+- **R-NaD:** `runs/my_league_run/checkpoints/model_step_*.pt`
+
+Exploiter pairings (which `.zip` to use for the "vs exploiter" column per checkpoint) are configured via the `EXPLOITER_PAIRS` constant near the top of the file.
+
+| Argument            | Default | Description                                               |
+| ------------------- | ------- | --------------------------------------------------------- |
+| `--run-dir`       | —      | Path to the league run folder                             |
+| `--out`           | auto    | Output JSON path (default: `output/evaluation/<run>.json`) |
+| `--episodes`      | 200     | Episodes per opponent per checkpoint                      |
+| `--hidden-layers` | `256 256` | PolicyNetwork hidden layer widths (must match training) |
+| `--device`        | `cpu` | Torch device                                              |
+| `--max-gen`       | —      | Only evaluate up to this exploiter generation             |
 
 ---
 

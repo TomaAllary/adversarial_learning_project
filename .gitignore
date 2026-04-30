@@ -408,11 +408,11 @@ build
 results
 *.egg-info
 *.pt
-*.png
 
 # Training runs
 runs/
 events.out.tfevents.*
+output/*
 
 settings.local.json
 
