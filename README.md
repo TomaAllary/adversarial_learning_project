@@ -280,12 +280,12 @@ Win rates of the main agent against three opponent types throughout a full train
 
 ### Qualitative Examples
 
-In both clips below, **Red = main agent (R-NaD)**, **Blue = trained exploiter (PPO)**. The exploiter is given full training budget against a frozen snapshot of the main agent at that generation.
+In both clips below, **Red = main agent (R-NaD)**, **Blue = trained exploiter (PPO)**, both from the **50% exploiter sampling** run. The exploiter is given full training budget against a frozen snapshot of the main agent at that generation.
 
 <table>
 <tr>
-<td align="center"><img src="readme_images/exploitable_example.gif" alt="Exploitable strategy — generation 5"/></td>
-<td align="center"><img src="readme_images/nash_example.gif" alt="Near-Nash strategy — generation 200"/></td>
+<td align="center"><img src="readme_images/exploitable_example.gif" alt="Exploitable strategy — generation 5" width="100%"/></td>
+<td align="center"><img src="readme_images/nash_example.gif" alt="Near-Nash strategy — generation 200" width="100%"/></td>
 </tr>
 <tr>
 <td align="center"><strong>Generation 5 — exploitable.</strong> The main agent has not yet found a robust strategy; the exploiter (Blue) reliably wins by exploiting predictable movement.</td>
