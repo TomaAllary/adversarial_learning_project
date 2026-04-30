@@ -282,14 +282,14 @@ Win rates of the main agent against three opponent types throughout a full train
 
 In both clips below, **Red = main agent (R-NaD)**, **Blue = trained exploiter (PPO)**, both from the **50% exploiter sampling** run. The exploiter is given full training budget against a frozen snapshot of the main agent at that generation.
 
-<table>
+<table width="100%">
 <tr>
-<td align="center"><img src="readme_images/exploitable_example.gif" alt="Exploitable strategy — generation 5" width="100%"/></td>
-<td align="center"><img src="readme_images/nash_example.gif" alt="Near-Nash strategy — generation 200" width="100%"/></td>
+<td align="center" width="50%"><img src="readme_images/exploitable_example.gif" alt="Exploitable strategy — generation 5" width="100%"/></td>
+<td align="center" width="50%"><img src="readme_images/nash_example.gif" alt="Near-Nash strategy — generation 200" width="100%"/></td>
 </tr>
 <tr>
-<td align="center"><strong>Generation 5 — exploitable.</strong> The main agent has not yet found a robust strategy; the exploiter (Blue) reliably wins by exploiting predictable movement.</td>
-<td align="center"><strong>Generation 200 — near-Nash.</strong> The main agent has converged to a corner-camping strategy that the exploiter cannot break: the 90° vision cone makes the corner geometrically unbeatable.</td>
+<td align="center" width="50%"><strong>Generation 5 — exploitable.</strong> The main agent has not yet found a robust strategy; the exploiter (Blue) reliably wins by exploiting predictable movement.</td>
+<td align="center" width="50%"><strong>Generation 200 — near-Nash.</strong> The main agent has converged to a corner-camping strategy that the exploiter cannot break: the 90° vision cone makes the corner geometrically unbeatable.</td>
 </tr>
 </table>
 
