@@ -19,6 +19,8 @@ A research project exploring adversarial multi-agent reinforcement learning in a
 
 ![Steps to Near-Nash Convergence](readme_images/steps_to_threshold.png)
 
+![Project Poster](readme_images/poster.png)
+
 ---
 
 ## Table of Contents
