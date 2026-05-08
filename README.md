@@ -2,7 +2,7 @@
 
 Accelerating Nash Convergence in Competitive Self-Play via Minimax Exploiter-Augmented R-NaD
 
-A research project exploring adversarial multi-agent reinforcement learning in a custom 2D tactical shooter environment. Three training regimes are implemented: **PPO** (Proximal Policy Optimization via [Stable Baselines 3](https://stable-baselines3.readthedocs.io/)) for single-team training against a fixed opponent, **R-NaD** (Regularized Nash Dynamics) for self-play convergence to a Nash equilibrium, and **Minimax Exploiter / League Training** for iterative adversarial improvement.
+A research project exploring adversarial multi-agent reinforcement learning in a custom 2D tactical shooter environment. The core contribution combines **R-NaD** ([DeepNash, Perolat et al., 2022](https://arxiv.org/pdf/2206.15378.pdf)) with the **Minimax Exploiter** ([Bairamian et al., AAMAS 2024](https://arxiv.org/abs/2311.17190)), showing that injecting adversarial exploiter pressure into the training population accelerates Nash convergence. Three training regimes are implemented: **PPO** (Proximal Policy Optimization via [Stable Baselines 3](https://stable-baselines3.readthedocs.io/)) for single-team training against a fixed opponent, **R-NaD** for self-play convergence to a Nash equilibrium, and **Minimax Exploiter / League Training** for iterative adversarial improvement.
 
 ---
 
